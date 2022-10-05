@@ -50,11 +50,8 @@ main:
 	bne .1
 
 	adr r9, context
-	bl RangeInit
 	adr r10, compressed_data
 	adr r11, decompressed_data
-	ldr r12, compressed_end
-	sub r12, r12, r10			; data_size
 	bl LZDecode
 
 	ldr pc, [sp], #4
@@ -70,15 +67,11 @@ main:
 ; Data
 ; ============================================================================
 
-compressed_end:
-	.long compressed_data_end
-
 context:
 .skip NUM_CONTEXTS*4
 
 compressed_data:
 .incbin "build/a252eur3.shr"
-compressed_data_end:
 .align 4
 
 decompressed_data:
