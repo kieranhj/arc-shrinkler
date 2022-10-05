@@ -10,3 +10,6 @@ TODO:
 - Remove need to look up every single byte.
 - Reduce register pressure.
 - Inline funtions.
+- Proper Makefile.
+- Implement callback fn.
+- Make it a Relocatable Module?

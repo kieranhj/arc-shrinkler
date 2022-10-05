@@ -6,250 +6,331 @@
 ; No warranties of any kind are given as to its behavior
 ; or suitability.
 
-
-; Perhaps might be better to reimplement this from the C code:
-;   DataFile.h: DataFile.verify uses
-;	LZDecoder.h: LZDecoder.decode with
-;   RangeDecoder.h: RangeDecoder as the Decoder.
-;
-
-.err This port of 68000 code does not work!
-
-; Main loop for decoding is in LZDecoder.decode.
-; Uses decoder->decode (bit) and decoder->decodeNumber to implement LZ.
-; class RangeDecoder implements decode using the contexts / probability scheme to decode individual bits.
-; class Decoder implements decodeNumber to decode a number >=2 using a varibale-length encoding.
-;
-; Question: do we care enough to implement yet another decruncher?
+; ============================================================================
+; Acorn Archimedes ARM Port of ShrinklerDecompress.S.
+; 2022 Kieran Connell.
+; ============================================================================
 
 .equ INIT_ONE_PROB, 0x8000
 .equ ADJUST_SHIFT, 4
 .equ SINGLE_BIT_CONTEXTS, 1
 .equ NUM_CONTEXTS, 1536
-.equ PARITY_CONTEXT, 1		; frees D7
+.equ PARITY_MASK, 1
 
-; Decompress Shrinkler-compressed data produced with the --data option.
-;
-; A0 = Compressed data
-; A1 = Decompressed data destination
-; A2 = Progress callback, can be zero if no callback is desired.
-;      Callback will be called continuously with
-;      D0 = Number of bytes decompressed so far
-;      A0 = Callback argument
-; A3 = Callback argument
-; D7 = 0 to disable parity context (Shrinkler --bytes / -b option)
-;      1 to enable parity context (default Shrinkler compression)
-;
-; Uses 3 kilobytes of space on the stack.
-; Preserves D2-D7/A2-A6 and assumes callback does the same.
-;
-; Decompression code may read one longword beyond compressed data.
-; The contents of this longword does not matter.
+.equ NUM_SINGLE_CONTEXTS, 1
 
-; For ARM assume:
-;                d0 => R0
-;                d1 => R1
-;                d2 => R2
-;                d3 => R3
-;                d4 => R4
-;                d5 => R5
-;                d6 => R6
-;                d7 => (const)
-;
-;                a0 => R8
-;				 a1 => R9
-;				 a2 => (const)
-;				 a3 => (const)
-;				 a4 => R10	= pIn
-;				 a5 => R11	= pOut
-;				 a6 => (const)
-;				 a7 => sp
-;
-; Note: d7 is constant, so can be assemble option.
-;       a2, a3, a6, can be looked up during callback.
-;
-; 				 R7 => temp
-;				R12 => bit
-;
-; ARM
-; R0 = Compressed data
-; R1 = Decompressed data destination
-; R2 = Progress callback, can be zero if no callback is desired.
-;      Callback will be called continuously with
-;      D0 = Number of bytes decompressed so far
-;      A0 = Callback argument
-; R3 = Callback argument
-;
-ShrinklerDecompress:
-	; Stash all regs for now.
-	stmfd sp!, {r0-lr}				; movem.l	d2-d7/a4-a6,-(a7)
+.equ CONTEXT_KIND, 0
+.equ CONTEXT_REPEATED, -1
+.equ CONTEXT_GROUP_LIT, 0
+.equ CONTEXT_GROUP_OFFSET, 2
+.equ CONTEXT_GROUP_LENGTH, 3
 
-	; Free up R2, R3 for d2, d3
-	str r2, progress_callback
-	str r3, callback_argument
+; ============================================================================
+; ARM Register Usage.
+; ============================================================================
 
-	; Free up R0, R1 for d0, d1
-	mov r10, r0						; move.l	a0,a4
-	mov r11, r1						; move.l	a1,a5
-	str r1, decompress_base			; move.l	a1,a6
+; R0  = temp / parameter / return value
+; R1  = bool ref                (LZDecode)
+; R2  = unsigned intervalvalue 	(RangeDecoder)
+; R3  = unsigned intervalsize	(RangeDecoder)
+; R4  = unsigned uncertainty    (RangeDecoder)
+; R5  = bool prev_was_ref       (LZDecode)
+; R6  = bit_index			    (RangeDecoder)
+; R7  = int pos                 (LZDecode)
+; R8  = int offset              (LZDecode)
+; R9  = context				    (global)
+; R10 = source				    (global)
+; R11 = dest				    (global)
+; R12 = data_size			    (global)
 
-	; Init range decoder state
-	mov r2, #0						; moveq.l	#0,d2
-	mov r3, #1						; moveq.l	#1,d3
-	mov r4, #1						; moveq.l	#1,d4
-	movs r4, r4, ror #1				; ror.l		#1,d4
-
-	; Init probabilities
-	mov r6, #NUM_CONTEXTS			; move.l	#NUM_CONTEXTS,d6
-	mov r7, #INIT_ONE_PROB			; temp.
-init:
-	str r7, [sp, #-4]!				; move.w	#INIT_ONE_PROB,-(a7)
-	subs r6, r6, #1					; subq.w	#1,d6
-	bne init						; bne.b	.init
-
-	; D6 = 0
-
-	; Urgh! In 68K C=prev_was_ref flag, X=decoded bit.
-
-lit:
-	; Literal
-	add r6, r6, #1					; addq.b	#1,d6 [BYTE]
-getlit:
-	bl GetBit						; bsr.b		GetBit
-	adc r6, r6, r6					; addx.b	d6,d6
-	bcc getlit						; bcc.b		.getlit
-	strb r6, [r11], #1				; move.b	d6,(a5)+
-	bl ReportProgress				; bsr.b		ReportProgress
-switch:
-	; After literal
-	bl GetKind						; bsr.b		GetKind
-	bcc lit							; bcc.b		.lit
-	; Reference
-	mov r6, #-1						; moveq.l	#-1,d6
-	bl GetBit						; bsr.b		GetBit
-	bcc readoffset					; bcc.b		.readoffset
-readlength:
-	mov r6, #4						; moveq.l	#4,d6
-	bl GetNumber					; bsr.b		GetNumber
-copyloop:
-	ldrb r7, [r11, r5]
-	strb r7, [r11], #1				; move.b	(a5,d5.l),(a5)+
-	subs r0, r0, #1					; subq.l	#1,d0
-	bne copyloop					; bne.b		.copyloop
-	bl ReportProgress				; bsr.b		ReportProgress
-	; After reference
-	bl GetKind						; bsr.b		GetKind
-	bcc lit						; bcc.b		.lit
-readoffset:
-	mov r6, #3						; moveq.l	#3,d6
-	bl GetNumber					; bsr.b		GetNumber
-	mov r5, #2						; moveq.l	#2,d5
-	subs r5, r5, r0					; sub.l		d0,d5
-	bne readlength					; bne.b		.readlength
-
-	mov r7, #NUM_CONTEXTS*2			; lea.l	NUM_CONTEXTS*2(a7),a7
-	add sp, sp, r7, lsl #2			
-	ldmfd sp!, {r0-lr}				; movem.l	(a7)+,d2-d7/a4-a6
-	mov pc, lr						; rts
-
-ReportProgress:
-	str lr, [sp, #-4]!
-	ldr r7, progress_callback		; temp
-	cmp r7, #0
-	beq .nocallback					; beq.b		.nocallback
-	mov r0, r11						; move.l	a5,d0
-	ldr r12, decompress_base
-	sub r0, r0, r12					; sub.l		a6,d0
-	ldr r1, callback_argument		; move.l	a3,a0
-	mov pc, r7						; jsr		(a2)
-.nocallback:
-	ldr pc, [sp], #4				; rts
-
-progress_callback:
-	.long 0
-
-callback_argument:
-	.long 0
-
-decompress_base:
-	.long 0
-
-GetKind:
-	; Use parity as context
-	mov r6, r11						; move.l	a5,d6
-	and r6, r6, #PARITY_CONTEXT		; and.l		d7,d6
-	mov r6, r6, lsl #8				; lsl.w		#8,d6
-	b GetBit						; bra.b		GetBit
-
-GetNumber:
-	str lr, [sp, #-4]!
-	; D6 = Number context
-
-	; Out: Number in D0
-	mov r6, r6, lsl #8				; lsl.w		#8,d6
-numberloop:
-	add r6, r6, #2					; addq.b	#2,d6
-	bl GetBit						; bsr.b		GetBit
-	bcs numberloop					; bcs.b		.numberloop
-	mov r0, #1						; moveq.l	#1,d0
-	sub r6, r6, #1					; subq.b	#1,d6
-bitsloop:
-	bl GetBit						; bsr.b		GetBit
-	adc r0, r0, r0					; addx.l	d0,d0
-	subs r6, r6, #2					; subq.b	#2,d6
-	bcc bitsloop					; bcc.b	.bitsloop
-	ldr pc, [sp], #4				; rts
-
-	; D6 = Bit context
-
-	; D2 = Range value
-	; D3 = Interval size
-	; D4 = Input bit buffer
-
-	; Out: Bit in C and X
-
-readbit:
-	adds r4, r4, r4					; add.l		d4,d4
-	bne nonewword					; bne.b		nonewword
-	ldr r4, [r10], #4				; move.l	(a4)+,d4
-	adc r4, r4, r4					; addx.l	d4,d4
-	; LOSE CARRY HERE? -V
-nonewword:
-	adc r2, r2, r2					; addx.w	d2,d2
-	add r3, r3, r3					; add.w		d3,d3
+; ============================================================================
+; Implements RangeDecoder::getBit().
+; Returns R0 = bit.
+; ============================================================================
 GetBit:
-	tst r3, #0						; tst.w		d3
-	bpl readbit						; bpl.b		readbit
+	; R1 = bit_in_byte
+	mvn r1, r6					; (~bit_index)
+	and r1, r1, #7				; int bit_in_byte = (~bit_index) & 7;
 
-	; lea.l	4+SINGLE_BIT_CONTEXTS*2(a7,d6.l),a1
-	add r9, r6, r6					; add.l		d6,a1
-	add r9, r9, #4+SINGLE_BIT_CONTEXTS*2
-	; *2 for long words on ARM.
-	ldr r1, [sp, r9, lsl #1]		; move.w	(a1),d1
-	; D1 = One prob
+	cmp r6, r12, lsl #3			; if (bit_index++ >= data.size() * 8) {
+	blt .1
+	add r6, r6, #1				; bit_index++
+	mov r4, r4, lsl #1			; uncertainty <<= 1;
+	mov r0, #0					; return 0;
+	mov pc, lr
+.1:
+	; TODO: Don't read byte every time!
+	ldrb r0, [r10, r6, lsr #3]	; int bit = (data[byte_index]								
+	mov r0, r0, lsr r1			;            >> bit_in_byte)
+	and r0, r0, #1				; 			 & 1;
+	add r6, r6, #1				; bit_index++
+	mov pc, lr					; return bit
 
-	mov r1, r1, lsr #ADJUST_SHIFT	; lsr.w	#ADJUST_SHIFT,d1
-	ldr r7, [sp, r9, lsl #1]
-	sub r7, r7, r1
-	str r7, [sp, r9, lsl #1]		; sub.w		d1,(a1)	; (a1)-=d1
-	add r1, r1, r7					; add.w		(a1),d1	; d1+=(a1)
 
-	mul r1, r3, r1					; mulu.w	d3,d1
-	mov r1, r1, lsr #16				; swap.w	d1
+; ============================================================================
+; Implements RangeDecoder::decode(int context_index).
+; Decode a bit in the given context.
+; Returns the decoded bit value.
+; R0 = context_index
+; Returns R0 = bit
+; ============================================================================
+RangeDecodeBit:
+	stmfd sp!, {r1, r5, r7, lr}	; <= REGISTER PRESSURE!
 
-	subs r2, r2, r1					; sub.w		d1,d2
-	blo one						; blo.b		.one
-zero:
-	; oneprob = oneprob * (1 - adjust) = oneprob - oneprob * adjust
-	subs r3, r3, r1					; sub.w	d1,d3
-	; 0 in C [and X]
-	mov pc, lr						; rts
-one:
-	; onebrob = 1 - (1 - oneprob) * (1 - adjust) = oneprob - oneprob * adjust + adjust
-	ldr r7, [sp, r9, lsl #1]
-	add r7, r7, #0xffff>>ADJUST_SHIFT
-	str r7, [sp, r9, lsl #1]		; add.w		#$ffff>>ADJUST_SHIFT,(a1)
-	mov r3, r1						; move.w	d1,d3
-	adds r2, r2, r1					; add.w		d1,d2
-	; 1 in C [and X]
-	mov pc, lr						; rts
+	.if _DEBUG
+	cmp r0, #0					; assert(context_index < contexts.size());
+	bmi .4
+	cmp r0, #NUM_CONTEXTS		; assert(context_index < contexts.size());
+	blt .3
+	.4:
+	adr r0, assert1
+	swi OS_GenerateError
+	.3:
+	.endif
+
+	str r0, [sp, #-4]!			; <= REGISTER PRESSURE!
+.1:
+	cmp r3, #0x8000				; while (intervalsize < 0x8000) {
+	bge .2
+	mov r3, r3, lsl #1			; 	intervalsize <<= 1;
+	bl GetBit					; 	r0=GetBit()
+	orr r2, r0, r2, lsl #1		; 	intervalvalue = (intervalvalue << 1) | getBit();
+	b .1						; }
+.2:
+	ldr r0, [sp], #4			; <= REGISTER PRESSURE!
+	ldr r1, [r9, r0, lsl #2]	; unsigned prob = contexts[context_index];
+
+	; R0 =	int bit;
+	; R7 =	unsigned new_prob;
+	; R8 =	unsigned threshold
+	mul r8, r3, r1				; unsigned threshold = (intervalsize * prob) >> 16;
+	mov r8, r8, lsr #16			
+
+	cmp r2, r8					; if (intervalvalue >= threshold)
+	blt One
+	; Zero						; {
+	sub r2, r2, r8				; intervalvalue -= threshold;
+	sub r3, r3, r8				; intervalsize -= threshold;
+	sub r7, r1, r1, lsr #ADJUST_SHIFT	; new_prob = prob - (prob >> ADJUST_SHIFT);	
+
+	.if _DEBUG
+	cmp r7, #0					; assert(new_prob > 0);
+	bmi .5
+	cmp r7, #0x10000			; assert(new_prob < 0x10000);
+	blt .6
+	.5:
+	adr r0, assert3
+	swi OS_GenerateError
+	.6:
+	.endif
+
+	str r7, [r9, r0, lsl #2]	; contexts[context_index] = new_prob;
+	mov r0, #0					; bit = 0;
+	ldmfd sp!, {r1, r5, r7, lr}	; return bit
+	mov pc, lr
+
+One:
+	.if _DEBUG
+	add r7, r2, r4
+	cmp r7, r8					; assert(intervalvalue + uncertainty <= threshold);
+	ble .1
+	adr r0, assert2
+	swi OS_GenerateError
+	.1:
+	.endif
+
+	mov r3, r8					; intervalsize = threshold;
+	add r7, r1, #0xffff >> ADJUST_SHIFT	; new_prob = prob + (0xffff >> ADJUST_SHIFT) 
+	sub r7, r7, r1, lsr #ADJUST_SHIFT	;          - (prob >> ADJUST_SHIFT);
+
+	.if _DEBUG
+	cmp r7, #0					; assert(new_prob > 0);
+	bmi .4 
+	cmp r7, #0x10000			; assert(new_prob < 0x10000);
+	blt .3
+	.4:
+	adr r0, assert3
+	swi OS_GenerateError
+	.3:
+	.endif
+
+	str r7, [r9, r0, lsl #2]	; contexts[context_index] = new_prob;
+	mov r0, #1					; bit = 1;
+	ldmfd sp!, {r1, r5, r7, lr}	; return bit
+	mov pc, lr
+
+.if _DEBUG
+assert1: ;The error block
+    .long 18
+	.byte "assert(context_index < contexts.size()); FAILED"
+	.align 4
+	.long 0
+
+assert2: ;The error block
+    .long 18
+	.byte "assert(intervalvalue + uncertainty <= threshold); FAILED"
+	.align 4
+	.long 0
+
+assert3: ;The error block
+    .long 18
+	.byte "assert(new_prob > 0 && new_prob < 0x10000); FAILED"
+	.align 4
+	.long 0
+.endif
+
+
+; ============================================================================
+; Implements RangeDecoder::reset().
+; R9 = context buffer			(global)
+; ============================================================================
+RangeInit:
+	mov r6, #0					; bit_index = 0;
+	mov r3, #1					; intervalsize = 1;
+	mov r2, #0					; intervalvalue = 0;
+	mov r4, #1					; uncertainty = 1;
+
+	mov r1, #INIT_ONE_PROB
+	mov r0, #NUM_CONTEXTS-1
+.1:
+	str r1, [r9, r0, lsl #2]	; contexts[context_index] = 0x8000;
+	subs r0, r0, #1
+	bpl .1
+	mov pc, lr
+
+
+; ============================================================================
+; Implements (Range)Decoder::decodeNumber(int base_context).
+; Decode a number >= 2 using a variable-length encoding.
+; Returns the decoded number.
+; R0 = base_context
+; Returns R0 = number
+; ============================================================================
+RangeDecodeNumber:
+	str lr, [sp, #-4]!
+	mov r5, r0				; base_context
+	mov r1, #0				; for (i = 0 ;; i++) {
+.1:
+	add r0, r5, r1, lsl #1	; 	context = base_context + (i * 2
+	add r0, r0, #2			;           + 2);
+	bl RangeDecodeBit		;   decode(context)
+	cmp r0, #0
+	beq .2					;   if (decode(context) == 0) break;
+	add r1, r1, #1			;   i++ }
+	b .1
+.2:
+	mov r7, #1				; int number = 1;
+.3:							; for (; i >= 0 ; i--) {
+	add r0, r5, r1, lsl #1	;   context = base_context + (i * 2
+	add r0, r0, #1			; 		    + 1);
+	bl RangeDecodeBit		;   decode(context);
+	orr r7, r0, r7, lsl #1	;   number = (number << 1) | bit;
+	subs r1, r1, #1			;   i--
+	bpl .3					; }
+
+	mov r0, r7
+	ldr pc, [sp], #4		; return number;
+
+
+; ============================================================================
+; Implements LZDecoder::decode(int context).
+; R0 = context
+; Returns R0 = RangeDecoder::decode(NUM_SINGLE_CONTEXTS + context)
+; ============================================================================
+decode:
+	stmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+	add r0, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + context
+	bl RangeDecodeBit				; decode(...)
+	ldmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+	mov pc, lr
+
+
+; ============================================================================
+; Implements LZDecoder::decodeNumber(int context_group).
+; R0 = context_group
+; Returns R0 = RangeDecoder::decodeNumber(NUM_SINGLE_CONTEXTS + (context_group << 8))
+; ============================================================================
+decodeNumber:
+	stmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+	mov r0, r0, lsl #8
+	add r0, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + (context_group << 8));
+	bl RangeDecodeNumber			; decodeNumber(...)
+	ldmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+	mov pc, lr
+
+
+; ============================================================================
+; Implements LZDecoder::decode().
+; Decodes an LZ stream using the RangeDecoder.
+; R9 = context				(global)
+; R10 = source				(global)
+; R11 = dest				(global)
+; R12 = data_size			(global)
+; ============================================================================
+LZDecode:
+	str lr, [sp, #-4]!
+	mov r1, #0					; bool ref = false;
+	mov r5, #0					; bool prev_was_ref = false;
+	mov r7, #0					; int pos = 0;
+	mov r8, #0					; int offset = 0;
+
+LZDecode_loop:					; do {
+	cmp r1, #0					; if (ref) {
+	beq LZDecode_literal
+
+	mov r0, #0					; bool repeated = false;
+	cmp r5, #0					; if (!prev_was_ref) {
+	moveq r0, #CONTEXT_REPEATED ;
+	bleq decode					;   repeated = decode(LZEncoder::CONTEXT_REPEATED);
+								; }
+	cmp r0, #0					; if (!repeated) {
+	bne .1						;
+	mov r0, #CONTEXT_GROUP_OFFSET
+	bl decodeNumber				;   offset = decodeNumber(LZEncoder::CONTEXT_GROUP_OFFSET)
+	sub r8, r0, #2				;	       - 2;
+	cmp r8, #0					;
+	beq LZDecode_break			;   if (offset == 0) break;
+.1:								; }
+	mov r0, #CONTEXT_GROUP_LENGTH
+	bl decodeNumber				; int length = decodeNumber(LZEncoder::CONTEXT_GROUP_LENGTH);
+
+	add r7, r7, r0				; pos += length;
+
+	; Copied from Verifier::receiveReference(offset, length)
+	sub r5, r11, r8				; pos - offset
+.2:								; for (int i = 0 ; i < length ; i++) {
+	ldrb r1, [r5], #1			; 	data[pos - offset + i]
+	strb r1, [r11], #1			; 	data[pos + i]
+	subs r0, r0, #1				;   i--
+	bne .2						; }
+
+	mov r5, #1					; prev_was_ref = true;
+	b LZDecode_kind
+
+LZDecode_literal:				; } else {
+	str r11, [sp, #-4]!			;   <=REGISTER PRESSURE!
+	and r5, r7, #PARITY_MASK	;   int parity = pos & parity_mask;
+	mov r1, #1					;   int context = 1;
+	mov r11, #7					;   for (int i = 7 ; i >= 0 ; i--) {
+.1:
+	orr r0, r1, r5, lsl #8		;     (parity << 8) | context
+	bl decode					;     int bit = decode((parity << 8) | context);
+	orr r1, r0, r1, lsl #1		;     context = (context << 1) | bit;
+	subs r11, r11, #1			;     i--
+	bpl .1						;   }
+
+	ldr r11, [sp], #4			;   <=REGISTER PRESSURE!
+	strb r1, [r11], #1			;   *pDest++ = lit;
+	add r7, r7, #1				;   pos += 1;
+	mov r5, #0					;   prev_was_ref = false;
+								; }
+LZDecode_kind:
+	and r0, r7, #PARITY_MASK	; int parity = pos & parity_mask;
+	mov r0, r0, lsl #8
+	add r0, r0, #CONTEXT_KIND
+	bl decode					; decode(LZEncoder::CONTEXT_KIND + (parity << 8));
+	mov r1, r0					; ref = decode(...)
+	b LZDecode_loop
+
+LZDecode_break:
+	ldr pc, [sp], #4			; return true
