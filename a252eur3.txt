@@ -1,0 +1,1095 @@
+                                               |
+ EEEEEEEE                        K          A  |
+ EE                  R R    EE   K         AA  | The BITS ArcSIG 
+ EE         U   U   RR RR  E  E  K K      A A  | Newsletter
+ EEEEEEE    U   U   R      EEEE  KK      AA A  |
+ EE         U   U   R      E     K K    A  AA  | Issue #03
+ EEEEEEEE    UUUU   R       EEE  K  K  A    A  |
+                                               | Compiled & linked by Dave
+--------------------------------------------------------------------------
+
+STOP PRESS: We're now in circulation on Monochrome, the multi-user "everything"
+system at City University; TNX*1.0E6, Pelago!
+
+ In its current incarnation, which has been running for over a year now, Mono
+has grown into a highly sophisticated messaging and bulletin board system,
+covering just about every topic under the sun (and, of course, Suns!). Acorn
+machines have their own dedicated section, known as A-Corner, which has a great
+deal of technical info available, sections to post questions, and occasionally
+some information kindly leaked by Acorn themselves concerning future
+developments...
+ You can find Monochrome at paddington.city.ac.uk, UID mono, password mono.
+
+Editorial
+~~~~~~~~
+         To be quite frank, I really can't believe how EurekA's taken off. This
+is only the third issue, and we already have, via Monochrome, an international
+circulation...
+ In addition, as more people have got in touch with me and given me ideas as to
+what _really_ goes on inside these machines, we've become more technical.
+Thanks here are due to tony Duell, Rob Wheeler & Graham Willmott, all of whom
+have helped make EurekA what it is. For two released issues, we're doing OK.
+Indeed, this issue is probably the most technical of the three so far; if any
+of you have ever wanted to build a podule, I've detailed everything I can dig
+up on the subject in this issue. This may have something to do with my latest
+plans to interface an Arc to a Transputer array, but then again....:-)
+
+Now we're live on mono, of course, I hope that those of you who run user groups
+which support the Arc will get in touch and tell us what _you're_ up to. 
+
+ Recently, especially from the hardware point of view, I've started to have
+problems making sure that my articles are relevant to all Archimedes systems;
+for instance, in order to complete the podule article, I had to borrow an A3000
+tech ref (thanks, Tom) to get the mini-podule pinouts. Needless to say, I was
+shocked to see the absence of a +12V and -5V line... what are Acorn playing at?
+It worries me to think that this acceptance of differing standards for
+expansion cards may eventually result in Arc hardware compatibility becoming as
+big a farce as PC hardware compatibility. Please, Acorn, don't let this be the
+start of a trend....
+
+Dave Walker, ArcSIG Leader (phdw@siva.bris.ac.uk Monochrome ID gabriel)
+
+PS. Just noticed, while reading the ARM data book... the designers at
+Acorn/VLSI have a very dry sense of humour. The base series number for the ARM
+chipset is 86000... reverse the first two digits, and won't Motorola be pleased!
+
+*OBEY !RUN
+~~~~~~~~~
+
+SWI "OS_GenerateError"
+----------------------
+                      Many thanks for the feedback on last issue's Assembler
+Programmer's Pocket Guide; in addition to several typos, I managed to get one
+important fact wrong and forget to document two very obvious and very useful
+mnemonics. Thanks to Graham Willmott and KJB1003 (Kevin Bracey) for spotting
+this lot.
+
+First of all, the errors. In the documentation of the floating point system,
+R0-R7 should be F0-F7. In the memory map, I forgot to document the fact that
+the RAM filing system maps in at &1000000. Also, in the Floating point
+again, the suffix refers to conditional execution, whereas the precision
+is chosen from:
+----------------------------------------------------------------------------
+
+     IEEE Single Precision (S)
+     IEEE Double Precision (D)
+     Double Extended       (E)
+     Precision
+     BCD Packed Decimal    (P)
+
+The rounding mode is then chosen from:
+
+     Round to nearest      (no mnemonic)
+     Round to + infinity   (P)
+     Round to - infinity   (M)
+     Round to Zero         (Z)
+------------------------------------------------------------------------------
+ Apologies to all concerned if my nomenclature was insufficiently clear.
+
+ Second, the mnemonics. I somehow missed documenting the LDR and STR
+instructions; don't ask me how, I guess I must have been rowing. Here they 
+are, described in Pocket Ref. format. However, as this gives me the chance to
+cover the various addressing modes available, I think they can go in a separate
+section and you can cross-reference to it within the opcode mnemonic list.
+------------------------------------------------------------------------------
+
+Addressing Modes in ARM Assembler
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                 As R15 has a 26-bit wide address field, it is
+obviously not possible to fit an absolute address description into a 32 bit
+instruction which also has to contain the opcode, conditional(s) and operand
+registers. Hence, when specifying absolute addresses in ARM code, it is
+necessary to use indirection.
+
+The basic operands to load and store single-word registers are LDR and STR. LDR
+will be used in the examples illustrating addressing modes.
+
+Pre-Indexed Addressing
+----------------------
+
+ Syntax: LDR <suffix><destination>, [<base>{,<offset>}]
+
+         <base> is a simple register.
+         <offset> is an optional quantity such that the memory word loaded 
+         into <destination> is the contents of address (base+offset).
+         <offset> may be a simple register, a shifted register or an immediate
+         constant in the range -4095 to +4095.
+
+ Write-back is also implemented, so the instruction
+
+LDR R0,[R3,R8,LSL#2]  has the effect Load R0 with the contents of (R3+4*R8) and
+                      set R3=R3+4*R8.
+
+Post-Indexed Addressing
+-----------------------
+
+Syntax: LDR <suffix><destination> [<base>],<offset>
+
+ The contents of <base> are taken as the address to load <destination> from,
+and then the contents of <offset> are added to it. Write-back is implicit.
+
+Hence:
+
+LDR R8,[R2],R5,LSL#4   ; Load R8 from address R2: R2=R2+16*R5.
+                                  
+------------------------------------------------------------------------------
+ In addition, although I have seen no information as to changes in the segment
+of proprietary Acorn code included to re-sync the registers, an official
+statement has been made that the conditional extender NV is not to be used in
+future software, as Acorn plan to reassign the current NV bit pattern to
+another instruction. However, MOV R0,R0 should provide an equally effective
+no-op.
+
+APPEND
+------ 
+      KJB1003, a student at Cambridge (this newsletter is spreading!), also
+suggested that I add documentation about the OPT assembly directive. Here goes;
+update your copies of the Pocket Reference, everyone, as I expect the CC would
+be unamused if I crunch as much net.bandwidth as last time...
+------------------------------------------------------------------------------
+This bit can be included under:
+Register Assignment, Parameter Passing and Assembler Directives.
+
+ OPT <var> is a pseudo-opcode which directs the assembler to perform specific
+           functions, and when used, is always the first operator after the [.
+           When OPT is not explicitly specified, the default value is set to 3.
+
+           <var> is an integer, or variable containing an integer, which has
+           bits flagged to produce the following effects:
+
+Bit 0   clear = No listing produced
+          set = Listing produced
+Bit 1   clear = No errors reported
+          set = Errors reported
+Bit 2   clear = No offset assembly
+          set = Offset assembly performed
+Bit 3   clear = No range check performed
+          set = Range check performed (via L%)
+
+ The "no errors" bit is necessary for the first pass of a multi-pass assembly
+(ie where forward-referenced labels have been used).
+------------------------------------------------------------------------------
+Digging through the PRMs, I also found the mnemonic to opcode conversion tables
+for the floating point system. However, the latest news from our erstwhile BITS
+Librarian (Rob Wheeler) is that he has some PD software available which allows
+the FP system to be used in assembler. If you'd like a copy, contact him direct
+as se1043@seqa.bris.ac.uk.
+------------------------------------------------------------------------------
+
+Unary Operations
+----------------
+
+Command format  <unaryop><suffix><precision>{rounding mode} <Fdest>,(<Fop> #val)
+
+ Mnemonic      Effect               Calculation           Opcode
+ --------      ------               -----------           ------
+   MVF         Move                   Fdest=Fop            00001
+   MNF         Move negated           Fdest=-Fop           00011
+   ABS         Absolute value         Fdest=ABS(Fop)       00101
+   RND         Round to integer       Fdest=INT(Fop)       00111
+   SQT         Square root            Fdest=SQR(Fop)       01001
+   LOG         Log to base #10d       Fdest=LOG(Fop)       01011
+   LGN         Natural log            Fdest=LN(Fop)        01101
+   EXP         Exponent               Fdest=EXP(Fop)       01111
+   SIN         Obvious                Fdest=SIN(Fop)       10001
+   COS         Equally obvious        Fdest=COS(Fop)       10011
+   TAN         Ditto                  Fdest=TAN(Fop)       10101
+   ASN         ]                      Fdest=ASN(Fop)       10111
+   ACS         ] (Obvious)^-1         Fdest=ACS(Fop)       11001
+   ATN         ]                      Fdest=ATN(Fop)       11011
+
+Binary Operations
+-----------------
+                
+Command format:  
+
+<binaryop><suffix><precision>{rounding mode} <Fdest>,<Fop1>,(<Fop2> #value)
+
+ Mnemonic      Effect               Calculation           Opcode
+ --------      ------               -----------           ------
+
+   ADF         Add                    Fdest=Fop1+Fop2      00000
+   MUF         Multiply               Fdest=Fop1*Fop2      00010
+   SUB         subtract               Fdest=Fop1-Fop2      00100
+   RSF         Reverse subtract       Fdest=Fop2-Fop1      00110
+   DVF         Divide                 Fdest=Fop1/Fop2      01000
+   RDF         Reverse divide         Fdest=Fop2/Fop1      01010
+   POW         Raise to power         Fdest=Fop1^Fop2      01100
+   RPW         Reverse raise...       Fdest=Fop2^Fop1      01110
+   RMF         Remainder              Fdest=Fop1 MOD Fop2  10000
+   FML         Fast multiply          Fdest=Fop1*Fop2      10010
+   FDV         Fast divide            Fdest=Fop1/Fop2      10100
+   FRD         Fast reverse divide    Fdest=Fop2/Fop1      10110
+   POL         Polar angle            Fdest=angle between  11000
+                                            Fop1 and Fop2
+
+ Note that the "fast" instructions only produce single-figure accuracy,
+regardless of the precision specified in the mnemonic.
+
+Also, more useful entry points, to be appended to your Pocket Programmer's
+Reference (perhaps I should do a Mk. II memory map sometime, with all these
+locations listed) for those of you who wish to access the I/O devices in your
+Arcs directly.
+
+Cycle Type   Base Address           Device              Device IC
+----------   ------------           ------              ---------
+
+  Fast         &3310000     Floppy disc controller       WD1772
+  Sync         &33A0000        Econet controller          6854
+  Sync         &33B0000        Serial controller          6551
+  Fast         &3350000          Printer data             LS374
+
+ As you'll see later, I'm doing some work on podules this issue. Here's some
+useful podule entry points to know... however, including all of these in your
+Pocket Reference means you'll either have bad eyesight shortly from reading the
+small print, or you already have a very large pocket.
+
+  Fast         &3360000          Podule IRQ register       
+  Fast         &3360004          Podule IRQ mask           
+                                   register
+  Slow         &3270000          Extended external
+                                   podule space
+
+  Slow         &3240000          Podule 0
+  Med          &32C0000          Podule 0
+  Fast         &3340000          Podule 0
+  Sync         &33C0000          Podule 0
+
+  Slow         &3244000          Podule 1
+  Med          &32C4000          Podule 1
+  Fast         &3344000          Podule 1
+  Sync         &33C4000          Podule 1
+
+  Slow         &3248000          Podule 2
+  Med          &32C8000          Podule 2
+  Fast         &3348000          Podule 2
+  Sync         &33C8000          Podule 2
+
+  Slow         &324C000          Podule 3
+  Med          &32CC000          Podule 3
+  Fast         &334C000          Podule 3
+  Sync         &33CC000          Podule 3
+
+ Although these are the current lookup addresses, Acorn make no guarantees that
+they will stay here in future incarnations of the OS. Writing to and reading
+from these addresses is currently the fastest way to interact with a podule,
+but for future compatibility, it's safer to use the SWIs detailed later this
+issue. Alternatively, build your own lookup table using SWI
+"Podule_HardwareAddress", or (from what I've heard about it) take a look at
+!StrongHlp.
+
+ Please keep me posted with any errors you find in the Pocket Programmer's
+Reference, along with your wishlists of features to be covered in future.
+
+Marginal Hacks (Part 11 of 1<<31)
+--------------
+
+Differences between the A3010 and A3020: tony Duell
+---------------------------------------
+
+These 2 machines, based on the ARM250 (integrated ARM CPU, MEMC, IOC, VIDC -
+all on one chip) are very similar. In fact the main differences are 
+
+  A3010 (designed as a home computer)
+  Joystick port, RF modulator, No hard disk, No network, Green function keys,
+   Silly label on the back (No, not a DEC 'Silly Sticker' :-))
+
+  A3020 (designed as a replacement for the BBC micro in education)
+  Network option, IDE hard disk internally, Red function keys.
+
+Well, they are actually built on the same PCB, and you can in principle add
+options to either machine that are only present in the other one. One thing
+that is worth knowing (all reviews so far have said that it is impossible), is
+that the A3010's disk controller is capable of controlling an IDE hard disk -
+it's just that the socket is not fitted. It is possible to add it, and thus
+save your single mini-podule slot for something else.
+  If you want to try this, you should obtain the technical reference manual
+from Acorn (I don't have it), as there _may_ be decoupling capacitors and
+similar to add as well.
+
+Identifying monitor type on an A540; where to look
+--------------------------------------------------
+                                                  The 540 is unique among
+old-style (pre-A5000) Arcs in that it can accept a very wide range of monitors,
+and has a VIDC Accelerator built in. For those of you who didn't know or hadn't
+worked it out, VIDC will clock at several speeds, dependent on the monitor type
+configured. The video sync polarity and VIDC clock speed are stored in a
+write-only register at  &3350048, with the bit patterns
+
+ Clock Speed      Bit 1   Bit 0             Sync Polarity     Bit 3   Bit 2
+ -----------      -----   -----             -------------     -----   -----
+                                               V     H
+    24 MHz          0       0                  +     +          0       0
+25.175 MHz          0       1                  +     -          0       1
+    36 MHz          1       0                  -     +          1       0
+  Reserved          1       1                  -     -          1       1
+
+OK, so this is a write-only register... maybe we'll just have to convince MEMC
+otherwise!
+
+Sound Improvements
+------------------
+                  On implementing the Arc sound system, Acorn added a number of
+low-pass filters before the headphone output; whether they didn't envisage
+people connecting this output to anything other than a pair if headphones I
+don't know, but it sounds pretty awful through my hi-fi. Needless to say, this
+is no fault of my hi-fi!
+ Fortunately, these filters can be bypassed by rewiring a socket on the
+motherboard. PLEASE NOTE: After this modification, the headphone socket signal
+will have insufficient power to drive a pair of headphones. It may, however, be
+fed into a stereo amplifier.
+
+Find LK9. (Likely to be a different designation on a 300/400/5000/30n0 machine;
+there is _NO_ equivalent socket on an A3000; the job would require taking
+wiretaps direct off ICs. Mail me if you want to know which ones...) It's a 10
+pin in-line, and should be close to the headphone socket at the rear of the
+machine. In release configuration, the left headphone channel comes off pin 3,
+and the right channel comes off pin 7. The 'raw' (unfiltered) left and right
+channels come from pins 1 and 9 respectively; 2,4,6,8 and 10 are  ground, and 5
+is an auxiliary input.
+
+There is a possibility that this will cause the headphone amplification stages
+to go into oscillation; although this will do no harm to the computer, it could
+well ruin the sound quality (but not your hi-fi...).
+ However, I haven't heard of this happening yet...
+
+1 2 3 Testing...
+----------------
+                On the A540 (I don't know whether it's in the 400 or 5000
+series; it certainly isn't in the 300 or 3000 series, and I wouldn't expect it
+to be in the 30n0 series) Acorn included a socket for their own test hardware.
+This socket, LK4, has the pinout
+
+P1  +5V
+P2  D<0>     (Lowest bit of Data bus)
+P3  La<21>   (Bit 21 of Logical Address bus.... should go high when accessing
+              the high ROM area)
+P4  RomCS    (ROM Select)
+P5  Rst      (System Reset)
+P6  0V
+
+Graham tells me (I haven't looked here yet) that RISC OS 3.10 and 3.00 have an
+extensive self-test routine branched to at the start of ROM space (&3800000),
+which puts all sorts of bits on the bus, checks the integrity of ROM and RAM,
+and finds out how much RAM your machine has and which ARM is present.
+ If anyone can find a use for this, let me know!
+
+Features
+~~~~~~~
+
+A Chip off the Old !block: ARM3 and ARM610 compared; ARM7 rumours
+-------------------------
+                          Recently (OK, not _too_ recently!) the ARM family was
+joined by a new member; the 610. This processor has received a great deal of
+speculative press, having been selected as the processor for Apple's Newton
+Palmtop machine. Also, Acorn forums on the net have been rife with rumours of
+yet another, incredibly high-end pair of ARMs, so far designated (for want of a
+better name) ARM 7 and ARM 8.
+
+To add a little light relief to this issue of EurekA, I thought I'd distil what
+I've heard, and compare it to our friend the ARM 3; not only does this make a
+change from reading about my perennial wars with the PCM, but I haven't much
+choice; I deleted my emulator last week. Not from disgust at MS DOS, I hasten
+to add (although it was more than a passing contributor to the reasons why it
+didn't get reinstated!) but because of the dreaded "disc full" message. From my
+internal 120Mb hard drive (the 100Mb external hard drive being reserved for
+UNIX). One vaped PC partition and some rearranging later, I'm now happy with
+45Mb free on it, and the partition ain't coming back. :-)
+
+ Anyhow, to work.
+
+  The ARM 610 is the first implementation of the ARM 6 macrocell, released
+jointly with the ARM 60 (an unaugmented ARM 600 package, pin-compatible with
+the ARM 2). I don't think an ARM 600 was ever released, although it was
+designed. Not surprisingly, it was designed to look like an ARM 3.
+
+ The ARM 6 cell is built out of fully static CMOS, which means that the clock
+signal  to it can be turned off without losing information on the chip's state
+or the data contained therein. As the macro is based on micron-scale data
+paths, the final cell is sufficiently small to be included  wholesale on a
+custom wafer of standard size, (2.8 mm^2) with physical room to spare for cache,
+controllers etc. Indeed, the cell is already in use as an embedded controller
+in some of the latest laser printers.
+
+At most levels, the 610 is instruction-compatible with the ARM 3. However, the
+address space has been expanded to the full 32 bits possible (the processor
+flags & status mode bits have been moved to a new register, making 17 registers
+visible), and an extra pair of data lines (PROG32 and DATA32) which switch
+between full 32 bit instruction and data paths, and the 26 bit versions for ARM
+1,2 & 3 compatibility. (Does anyone out there have an old ARM 1 evaluation
+system? If so, please let me know!) Also note that BYTE (second-sourcing the
+relevant bits of a December 1991 article, here) seem to have it wrong again...
+the data path (even the coprocessor data path) is the full 32 bits wide! My
+print set says so!
+
+ In addition, there is a status line to switch the processor addressing mode
+between big and little-endian. This makes the ARM 610 compatible with EVERYBODY
+else!
+
+ Virtual memory drivers have been implemented in hardware; instead of the old
+address exception error, the system now calls the drive controller via a
+software service routine to load the missing page into RAM, and the specific
+instruction into cache. These exceptions may be handled in both supervisor and
+user mode.
+
+ Recalling the Pre-Fetch and Data-Abort vectors in Archimedes zero page (see
+EurekA #2), it's interesting to see that on the 610, there are moves towards
+delaying the last possible abort until even later in the cycle. This would
+result in far less strain on the cache, but require extra garbage collection.
+The feature is not implemented on the ARM 6; expect it on the ARM 8. However, a
+LATEABT signal has been added, which when high, will simulate this extra
+feature.
+
+ Pages, and indeed page size (4-64K, variable) is controlled by the on-chip
+MMU. Virtual and real page numbers are stored in a cached translation lookaside
+buffer (TLB), which also stores memory protection level data. When accessing a
+page, the processor checks to see if the TLB contains a translation from the
+virtual address to a real address in RAM; if so, the physical address is
+output.
+
+However, the interface to this (fairly conventional) memory model is based on
+an object-oriented user view of memory. If the page is not in RAM, the MMU
+allocates an index into the translation table, ofset by an address held in the
+translation table base register.
+ If the table entry is for a section (number of pages), the index will contain
+the section's base address, which may be combined with a virtual-address index
+to give a physical address to load the data at.
+ If the entry is for a single page, the index contains a pointer to the page
+table, where the address can be found.
+
+ One of the nicest tricks used in the new ARM is that lists of pointers are
+terminated by dummy instructions not on word boundaries. As the MMU traps
+accesses to all such words, the end of a list may be detected by intercepting
+the error raised by the MMU.
+
+ Access permissions are mapped separately from the virtual addresses, and
+can be manipulated in isolation. Page faults and permission faults are also
+handled by independent hardware. Access permissions are held in a 'domain
+space,' which is a contiguous arbitrary-sized block of pages. The chip supports
+up to 16 of these domains, each of which may be assigned an access level by the
+task managing it. Tasks are divided into clients, which may be denied access to
+a domain if the relevant access bits are set, and managers, which can always 
+grab a domain directly. Each task may (and usually will) use multiple domains.
+
+ The trouble with this kind of management is that it generates huge amount of
+garbage, as tasks claim and release domains. It is predicted that  the ARM 610
+will support (not had the specs on this) a garbage collection program, running
+concurrently with whatever other task are present, which will release areas of
+memory which were claimed by a task since terminated by changing the
+permissions; I'm still not sure that this wouldn't leave some tasks stranded,
+though. Further info on this would be appreciated.
+
+ Rumours of the ARMs 7 and 8 exist, and it is believed that a prototype ARM 8
+(probably built from ECL) has been run on Acorn's testbeds. Both ICs are said
+to be fully parallel-capable, and rumour has it that the ARM 8 is capable of
+asynchronous processing (although the current Arcs canbe considered asynch, as
+each of the four main ICs runs at a different speed; I'd be interested to know
+how an ARM 250 clocks the various parts of its mega-wafer). If this is so, an
+Archimedes n (where n is large!) would basically put mainframe processing power
+squarely on the desk. Thank you, Intel, and goodnight.
+
+
+A CALL to ARMs
+--------------
+              In my humble opinion, it's about time that BITS produced
+something useful, other than the occasional Newsletter. The HP SIG already has
+a serial to IR converter, so I thought some Archimedes hardware projects
+wouldn't go amiss, especially as the podule interface seems easy enough to
+design for. In order to cater for control of the final boards, I'm documenting
+the podule control SWIs later in this issue.
+
+Ideas so far: Archimedes to Transputer card; offload some of the processing
+              time from your ARM to a (or more than one!) T800(s). 
+              I'm looking into this at the moment; hence the podule stuff in
+              this issue!
+
+              For those of you on Monochrome (you know who you are...) who have
+              a spare ARM and RISC OS 2 ROM set, here's an idea. The ARM was
+              first sprung on the world in the form of the ARM 1 evaluation
+              system, which ran as a second processor on an Acorn Proton. This
+              means that, at a pinch, an ARM Tube is possible, although it may
+              be less than 32 bits wide. If it can be coaxed into giving us 16
+              bits, how about building an ARM second processor and going for
+              true multiprocessing? I'd be most impressed if anyone out there
+              has the ARM 1 system schematic...
+
+
+              I/O Podule; catch up with those interfaces on the 8 bit machines.
+              If anyone out there reads Elektor, check out the July / August
+              1991 issue; John Kortink (of !Translator, !Creator and !AIM fame)
+              supplies the circiut diagrams and PCB masks for a cheap black and
+              white video digitiser, which includes an I2C interface...
+
+              Econet upgrade; to be ported from the BBC Master document set.
+              See if it will run on an existing network.
+
+              FPA: Acorn haven't released it, & I don't know why. However, we
+              have the FPE, which is a full software model of the FPA, and the
+              pinout of the FPA socket. If the worst comes to the worst, is
+              anyone prepared to try out a pin-remapped ARM 2 and assorted 
+              interfacing chippery running the FPE (from an old RISC OS 2 ROM 
+              set) in the FPA socket?
+
+              System clock modification; I heard from Rob Wheeler, who was at
+              the BAU show, that Aleph One had a 540 which they had reclocked 
+              using a voltage controlled oscillator, just to see how fast it
+              would go. Rob believes it ran stably at 50MHz, which should put
+              the machine (assuming basic 13.5 MIPS out of a 27 MHz ARM 3) up
+              to about 20 MIPS, without an FPA. If you have any ideas
+              concerning motherboard mods to do this (ie loading the RISC OS
+              ROMs into fast RAM on system reset so they don't have to keep 
+              up, and indeed if 70ns on the RAM is fast enough), or if you saw
+              more than Rob did, please let me know. 
+
+For your information, a feasible Transputer interface has already been built on
+a podule, and is going into testing, now that my old 310 is down at the lab.
+I'll have a T425 (wish I could afford a T800...) or several hung off the back
+of my 540 yet!
+
+      
+Down to the Metal: Of Acorn, Inmos and non-von Neumann machines....
+-----------------
+                 As those of you who've talked to me recently will know, I've
+gone just about sufficiently mad to decide that interfacing my Arc(s) to a
+Transputer system would not only be a serious hack and a major factor in 
+speeding my machines up (I have had my 540 overloaded before now...), but that
+it shouldn't be too difficult a job. Also (this shows I've lost any remaining 
+sanity!) I think OCCAM is cute.
+
+ Anyhow. After a long, hard look at the Transputer Data Book, it appears that
+the IC for the interfacing job is the IMS CO11.
+ Basically, transputers are very simple entities to treat as black boxes. They
+clock universally off a 5MHz signal, which does not have to be in synch on all
+the chips (no worries about board size here!), and communicate with eachother
+via a pair of unidirectional serial links. The external clock is stepped up
+inside the chip using a phase-locked loop system, which is regulated by an
+external  high-quality capacitor. However (implementers beware) they're very
+tricky to start up; like all CMOS devices, they have to be soft-started,
+otherwise they'll hang and eventually blow.
+
+ The CO11 is designed with two purposes in mind; in operating mode 1 it can be
+used as a peripheral interface on a transputer array, and in mode 2 it can act
+as an interface between the transputer serial system and an 8-bit 
+microcomputer bus. Needless to say, I'll be configuring it in mode 2. Although
+the CO11 is only capable of handling 8 bit data, it's enough to handle the
+transputer instruction set; a more ambitious project could be to run a pair of
+CO11s off the podule bus, interfaced to two separate transputer networks...
+However, even I'm not that mad yet!
+
+
+                   -----------
+    Linkout   1  [|     U     |]  28 VCC
+     Linkin   2  [|           |]  27 CapMinus
+      RnotW   3  [|           |]  26 InputInt
+  Outputint   4  [|           |]  25 notCS
+        RS0   5  [|           |]  24 D0
+        RS1   6  [|           |]  23 D1
+  DoNotWire   7  [|   IMS     |]  22 D2
+         D3   8  [|   CO11    |]  21 DoNotWire
+  DoNotWire   9  [|           |]  20 D4
+         D5  10  [|           |]  19 DoNotWire
+  HoldToGND  11  [|           |]  18 D6
+         D7  12  [|           |]  17 LinkSpeed
+      Reset  13  [|           |]  16 SeparateIQ
+        GND  14  [|           |]  15 ClockIn
+                   -----------
+
+ Pin Name     Data Direction                   Function
+ --------     --------------                   --------
+  D0-D7          in/out                 Bidirectional microprocessor data bus
+  notCS            in                   Chip select
+  RS0-RS1          in                   Register select
+  RnotW            in                   Read/Write control signal
+  InputInt         out                  Interrupt; link receive buffer full
+  OutputInt        out                  Interrupt; link transmit buffer empty
+  LinkSpeed        in                   Set link speed as 10 or 20 Mbits/sec
+  HoldToGND                             Must be connected to 0V
+  DoNotWire                             Must be left disconnected.
+  VCC, GND                              Power supply (+5V) and return
+  CapMinus                              External capacitor for clock
+  ClockIn          in                   Input clock
+  Reset            in                   System reset
+  SeparateIQ       in                   Chip mode select
+  LinkIn           in                   Transputer bus input channel
+  LinkOut          out                  Transputer bus output channel
+
+ As with most ICs these days, VCC must be decoupled to GND via at least one
+100nF low inductance (eg ceramic) capacitor.
+
+ The capacitor to control the internal clock should be connected between VCC
+and CapMinus, with the negative terminal to CapMinus if the capacitor is of the
+polarised type. The capacitor should be of value 1uF, preferably ceramic, and
+with impedance less than 3 Ohm between 100 kHz and 10 MHz.
+
+ The clock signal for the system, input at ClockIn, must be derived from a
+crystal, as R-C oscillators aren't stable enough for this job. A decent 10 MHz
+crystal, fed through a divide-by-two, should suffice. Mark/space ratio is
+unimportant. Although I have the data, I'm not bothering to put the info in
+about rise & fall times, etc.... if you want them, email me.
+
+ To configure the IC for mode 2, SeparateIQ should be connected to GND.
+
+ Standard Transputer bus speed is 10 Mbits/sec, selected by pulling LinkSpeed
+low. The CO11 may also communicate at 20 Mbits/sec, and this is affected by
+holding LinkSpeed high.
+
+Communicating with the CO11
+---------------------------
+                            The microprocessor bus D0-D7 is bidirectional, and
+is high impedance unless the CO11 is selected (see below) and RnotW is high.
+D0 is the least significant bit.
+
+RnotW is the read/write select. RnotW high = read from CO11
+                                RnotW low  = write to CO11
+RnotW is latched by notCS going low; if timing allows, it is possible to alter
+RnotW before notCS going high.
+
+notCS is used to select the IC for reading/writing by the microprocessor.
+Register selectors RS0 and RS1 must be valid before the chip is selected, as
+must D0-7 if a microprocessor write operation is specified by RnotW.
+The chip is selected by pulling notCS low, and data is read by the chip on the
+rising edge of the notCS signal. However, I'm not planning to do this...
+
+The bit pattern on RS0 and RS1 determine which of the four registers in the
+CO11 is to be accessed by the microprocessor. A register is addressed by
+setting up RS0 and RS1, then taking notCS low. The state of RnotW determines
+whether the register is to be read from or written to.
+
+ RS0      RS1    RnotW     Register
+ ---      ---    -----     --------
+  0        0       1       Read data
+  0        0       0       Invalid
+  0        0       1       Invalid
+  0        1       0       Write data
+  1        0       1       Read input status
+  1        0       0       Write input status
+  1        1       1       Read output status
+  1        1       0       Write output status
+
+Input Data Register:
+                    Holds the last data packet received from the serial link.
+The data is valid only when the "data present" flag is set in the input status
+register.Reading the data herein is destructive (ie cannot read the same data
+twice). Writing to this register has no effect.
+
+Input Status Register:
+                      bit 0 = data present flag
+                      bit 1 = interrupt enable flag for InputInt line.
+ When writing to this register, bits 2-7 must be set to 0.
+
+Output Data Register:
+                     Data written to this register is transmitted out of the
+serial link as a transputer data packet. Data should only be written when the
+"output ready" bit of the output status register is high. This register should
+not be read from; the resulting data is undefined.
+
+Output Status Register:
+                       bit 0 = output ready flag
+                       bit 1 = interrupt enable
+ When writing to this register, bits 2-7 must be set to 0.
+
+ The InputInt output is set high to indicate that a transputer packet has been
+received. It is inhibited from going high when the interrupt enable bit has
+been set low, which occurs on a Reset, and when data is read from the input
+data register.
+ 
+ The OutputInt output is set high to insicate that the CO11 is ready to receive
+data for packeting and transmission. It is inhibited from going high when the
+interrupt enable bit is set, and is reset low when the CO11 is Reset or data is
+written to the data output register.
+
+ Well, that's it for this instalment. While writing it, it's amazing how much
+comms handling code you think up to handle the signals...
+ Anyway, in conjunction with the Podule Interface article below, I hope that I
+can get this unit fitted on a podule, and exchanging pleasantries with a T425.
+More next issue....
+ 
+Down to the Metal: Another Article! This time, Podule Interfacing
+-----------------
+The Hardware
+~~~~~~~~~~~
+                 Before you start working on devices to plug into the back of
+your precious Arc(s), you'll need to know the pinout and signal levels of the
+podule interface. As these aren't documented in the User Guide or the PRM set,
+I guess I'd better produce them here.
+
+ An application note, "A Series Podules," which contains a more complete
+specification of the podule interface, is available on request from Acorn.
+ This note should also cover the A3000/A30n0 (where n>=1) mini-podule.
+
+First of all, the power available per podule can be worked out from the
+backplane ratings:
+
+ +5V    1A maximum
+ +12V   250mA maximum
+ -5V    50mA maximum
+
+ Once you've worked out your power requirements, you'll need the pinout.
+
+ The Podule socket is a 64-way DIN 41612; the a side is to the bottom of the
+podule, the b (centre) line is unused, and the c side is the top.
+
+ Pin Number       a side       c side             Description
+ ----------       ------       ------             -----------
+     1              0V           0V                Ground
+     2             LA[15]       -5V
+     3             LA[14]        0V                Ground
+     4             LA[13]        0V                Ground
+     5             LA[12]     Reserved             
+     6             LA[11]       MS[0]              MEMC Podule select
+     7             LA[10]     Reserved
+     8             LA[9]      Reserved 
+     9             LA[8]      Reserved
+    10             LA[7]      Reserved
+    11             LA[6]      Reserved
+    12             LA[5]        RST                Reset
+    13             LA[4]        PR/W               Read/not write
+    14             LA[3]        PWE                Write strobe
+    15             LA[2]        PRE                Read strobe
+    16             BD[15]       PIRQ               Normal interrupt
+    17             BD[14]       PFIQ               Fast interrupt
+    18             BD[13]       S[6]
+    19             BD[12]       C1                 IIC serial bus clock (SCL)
+    20             BD[11]       C0                 IIC serial data      (SDA)
+    21             BD[10]       S[7]               External podule select
+    22             BD[9]        PS[0]              Simple podule select
+    23             BD[8]        IOGT               MEMC podule handshake
+    24             BD[7]        IORQ               MEMC podule request
+    25             BD[6]        BL                 I/O data latch control
+    26             BD[5]        0V                 Supply
+    27             BD[4]        CLK2               2MHz synchronous clock
+    28             BD[3]        CLK8               8MHz synchronous clock
+    29             BD[2]        REF8M              8MHz reference clock
+    30             BD[1]        +5V                Supply
+    31             BD[0]        Reserved
+    32              +5V         +12V
+
+ LA[0] and LA[1] are not routed.
+ Note that RST is the system reset signal, which is driven by IOC on power-up
+or by the system reset switch. The signal is open-collector, and may be driven
+by podules. Pulse width on this line to affect a reset should be at least 50ms.
+ 
+The podule data bus BD[0:15] connects to the main system bus D[0:31] via a set
+of bidirectional latches, and is mapped such that during a write (ARM to
+podule) D[16:31] is mapped to BD[0:15], and during a read (peripheral to ARM)
+BD[0:15] is mapped to D[0:15].
+
+The podule is read & identified (when PRE goes low) by the following bits on
+the data bus.
+
+BD[0] 0 = Podule generates IRQ
+      1 = Podule does not generate IRQ
+BD[1] 0 = Podule absent
+      1 = Podule present
+BD[2] 0 = Podule generates FIRQ
+      1 = Podule doesn not generate FIRQ
+BD[7] 0 = Acorn podule
+      1 = Third party
+
+BD[3:6] are the podule identification nybble.
+
+ When PS goes low, the address (from the table in previous article) is made
+available on address lines LA[2] to LA [15], and the data appears at BD[0] to
+BD[32].
+
+A3000 Users
+-----------
+           The A3000 mini-podule is a slightly cut-down version of the above
+pinout. Pin 2c is re-designated Reserved, as is pin 32c. Also, you have a
+separate, internal I2C connection, 
+
+I'll see if I can get a better source of the Podule system calls for the next
+issue; the PRMs aren't particularly clear on this, especially on the chunk
+handling side.
+
+The I2C bus - what is it? tony Duell
+-------------------------
+
+ This information originally appeared in Coredump, the newsletter of the BITS
+Hardware and Old Systems SIG, and is reprinted here with permission of the SIG
+Leader.
+
+The I2C bus (it stands for Inter Ic Communication) is a 2-wire (clock and data)
+multi-device bus designed by Philips originally for consumer electronics
+(Televisions, Video Recorders, etc). One of the main problems in such devices
+was the large number of peripheral devices (Teletext decoders, front-panel
+displays, remote control systems, etc) that were controlled by the central
+microcontroller, and which thus required the microcontroller's address and data
+busses to be routed around the complete device. However, none of these devices
+really required fast control (I mean, you don't change channels every
+microsecond, now do you?), and a serial bus was the obvious answer.
+
+_The_ reference on the I2C bus is the Philips data book. In my set, it's book
+4, parts 12a and 12b. I think that may have changed now. If I find out any more
+information, I'll report it in Coredump.  These books give complete
+specifications of the signals to be sent on the bus, and of the chips designed
+to connect to it. However, I'll summerise the most important aspects here.
+
+Both the clock (called SCA), and data (called SDA) are driven by open-collector
+(or equivalent in non-bipolar technologies) drivers, and are pulled up by
+resistors, external to all the IC's. If you have a personal computer on the
+bus, it's normal for the computer to be fitted with these resistors. So, in the
+idle state, both lines are in the logic 1 state, and can be forced to the
+logic 0 state by any device on the bus.
+
+Its important at this point to define 4 important terms : 
+Transmitter - the device that outputs data
+Receiver - the device that inputs data
+Master - the device that controls the transfer, and generates the clock signal
+Slave - the device controlled by the master. A particular IC may be designed to
+be a slave only, and in that case, it will be incapable of driving the clock
+line (although, of course, it will still monitor it).
+
+Data is passed serially, MSB first, on the data line. The data line is sampled
+by the slave when the clock is high, and thus, except in special circumstances, 
+the data line may only change state when the clock is low. Data is transfered
+in 8-bit bytes, and after the last bit is transfered, the transmitter allows
+the data line to float high, and the master generates one more clock pulse.
+During this time, the receiver pulls the data line low as an acknowledge
+signal.
+
+2 special conditions must also be defined - those to start and stop a
+transfer. They are the only time the data line changes state when the clock is
+high. In fact, a 1->0 change on the data line defines a start, a 0->1 change
+defines a stop.
+
+I've not said anything about addressing the various devices on the bus yet. The
+first byte transfered after the start signal is interpreted as an address. The
+LSB is 0 for a write, and 1 for a read. The other 7 bits select the device. It
+is normal for the top for bits to be permanently defined within a particular
+chip, and to allow some of the other bits (from 1 to 3) to be selected by
+external pins, thus allowing multiple devices of the same type on the same I2C
+bus - every device must have a unique address of course.
+
+Here are some typical sequences of data transfer on the I2C bus
+
+Write to slave IC
+
+Start | Address (LSB=0) | data | Ack | data | Ack | Stop
+
+Read from slave IC (a simple IC, with only 1 register)
+
+Start | Address (LSB=1) | data (from slave) | Ack | Stop
+
+Write to IC to select register, then read back
+
+Start | Address (LSB=0) | data (to slave - here a register select) | Ack |
+Start (here called a repeated start) | Address (LSB=1) | data (from slave) | 
+Ack | Stop
+
+How to get your computer talking on the I2C bus
+-----------------------------------------------
+If you have an Acorn Archimedes, then you are lucky. It has a I2C port built
+in, accessible on 2 pins of the podule connector. If you have some other
+machine, you will have to build a port yourself. Elektor magazine did an
+article describing a plug-in card for the IBM PC, for which both the etched
+circuit board, and a disk of driver software (including source code) are
+available. It uses the Philips PCF8584 device, available from RS components,
+under stock number 296-699. The examples I give will assume that you have this
+card, and the software. You will have to translate them for some other machine.
+In fact, the PCF8584 is a very easy-to-use device. It takes an 8-bit data bus,
+1 address line, an 8MHz clock (or other values can be used), and control
+signals. It even looks at the first access after a reset (which should be a
+write to the chip's register 0), and works out if it is being driven by an
+Intel-bus (the Arc is generally classed as an Intel bus-alike : Dave) or
+Motorola-bus CPU. It then defines the rest of the signals accordingly. I'll
+probably be designing boards to use this chip with other personal computers in
+due course, and will describe them in future issues of Coredump.
+
+
+Build a simple real-time clock for the I2C bus
+----------------------------------------------
+Here's the first of (hopefully) many projects to work in the I2C bus. It's a
+real-time clock in 6 components, using the PCF8583 device (RS stock number
+296-683). Here's how to wire it up. The PCF8583 has 8 pins 
+
+             --V--
+OSCI--------|     |----- +5v
+OSCO--------|     |-----INT
+A0----------|     |-----SCL
+Ground------|     |-----SDA
+             -----
+
++5v and ground are obvious!
+SCL and SDA are the I2C connections, and should be linked to the correct
+connections on whatever computer you are using to control this project
+
+INT is an interupt output. For now, just pull it high by a 1k resistor to +5v
+
+A0 is an address select input. It defines the LSB of the 7 bit address. The
+address is either 1010000 or 1010001. To use my software, simply connect it to
+ground. 
+
+OSCI and OSCO are the connections for a 32.768 kHz crystal (a digital watch
+crystal). Just connect it between the pins, and then connect a 5-25pF trimmer
+capacitor from OSCI to +5V. 
+
+That's it. If you are using the Elektor I2C interface and software, the program
+below should run as-is. If you are using some other machine, you can still use
+the method.
+
+
+program real_time_clock (input,output,bus);
+{Test PCF 8583 clock chip on I2C bus }
+
+{i2c is a unit provided on the Elektor I2c software disk}
+uses i2c,crt;
+
+var
+  bus:i2cfile;
+  packet:array[0..7] of byte;
+  r,p:byte;
+  i:integer;
+
+{The PCF8583 uses 8 bit BCD numbers (2 digit). The following 2 functions
+convert bytes to/from such BCD representations}
+
+function bcd2bin(x:byte):byte;
+begin;
+  bcd2bin:=(x div 16)*10 + (x mod 16);
+end;
+
+function bin2bcd(x:byte):byte;
+begin;
+  bin2bcd:=(x div 10)*16 + (x mod 10);
+end;
+
+begin;
+  {the array PACKET will be used to read/write to the PCF8583. The bytes
+   are mapped to the internal registers. First, we clear them }
+  for i:=0 to 7 do packet[i]:=0;
+
+  {Now, we get the current time, and put it in the correct bytes of PACKET.
+  Hours are regist 4, minutes 3, seconds 2 - see the PCF8583 data sheet
+  for more details }
+  clrscr;
+  write('hours : ');
+  readln(p);
+  packet[4]:=bin2bcd(p);
+  write('minutes : ');
+  readln(p);
+  packet[3]:=bin2bcd(p);
+  write('seconds : ');
+  readln(p);
+  packet[2]:=bin2bcd(p);
+
+  {Initialise the I2C system}
+  start(bus);
+
+  {The PCF8583 has an address with high nybble 1010, low nyble either 0
+   or 2 according to the state of the A0 pin. Bit 0 is the read/write
+   flag as normal. Here, A0 is tied low }
+  address(160);
+
+  {R is used as the register pointer for the PCF8583. It is set to the
+   number of the first register to be read or written}
+  r:=0;
+
+  {Now actually send the values to the PCF8583}
+  write(bus,r,packet[0],packet[1],packet[2],packet[3],packet[4],packet[5],
+          packet[6],packet[7]);
+
+  close(bus);
+
+  {Routine to read in the time and display it}
+  clrscr;
+
+  {reselect the PCF8583}
+  start(bus);
+  address(160);
+  repeat;
+
+    {We'll read in the 8 registers, starting from 0}
+    r:=0;
+
+    {send the register address to the PCF8583}
+    write(bus,r);
+
+    {Here, we start reading. In fact, the driver generates a repeated start
+     here}
+    read(bus,packet[0],packet[1],packet[2],packet[3],packet[4],packet[5],
+          packet[6],packet[7]);
+
+    {display the time}
+    gotoxy(20,3);
+    writeln(bcd2bin(packet[4]):2,':',bcd2bin(packet[3]):2,':',
+            bcd2bin(packet[2]):2);
+
+
+  until keypressed;
+  close (bus);
+end.
+
+Although this third second article is aimed at the design and implementation of
+an I2C bus on a certain "other" computer, it's interesting to see both how it's
+done (our own I2C comes out direct out of IOC), and to get a PASCAL listing
+which those of you with the DDE can test, substituting the SYS"IIC_Control"
+call where necessary.
+ Please mail me with your opinions as to whether you'd like to see the rest of
+the I2C series duplicated in EurekA, and if you'd like to receive Coredump (an
+excellent hardware Newsletter, especially for DEC hackers) tony can be
+contacted as ard@siva.bris.ac.uk. Coredump, like EurekA and Cassini (the HP
+Handheld SIG Newsletter) is also available from info.bris.ac.uk.
+
+*LIB
+~~~
+    Yet more freshly-acquired documentation available from your friendly
+neighbourhood SIG Leader...
+
+BBC Master blueprints
+---------------------
+                      Those were the days... well, indeed they were. However,
+these docs (never officially released) will hold a great deal of interest for
+those of us who still run Beebs, etc, and for the Arc-only owners as well, this
+print set includes schematics of the Econet interface. Fortunately, the Master
+Econet interface and the Arc Econet interface are electronically identical...
+
+ARM data book
+------------- 
+             If you want to know about the insides of the ARM chipset, look no
+further. This is the book designed by hardware developers for same, and tells
+you everything you always wanted to know and weren't afraid to ask, but
+couldn't find inside the PRM or Hardware Ref. Manual. Time to have some fun
+reprogramming the MEMC to tweak RAM protection in Supervisor mode.....
+
+Time to give my Bank Manager nightmares...
+------------------------------------------ 
+                                           After much deliberation, I've
+decided _NOT_ to buy a RISC OS 3.10 PRM set.
+
+(Pause for dramatic effect)
+
+ At least, not on paper. A CD ROM has been released, priced at #99, (but can't
+remember the name of the supplier at the moment; ho hum) containing
+the following documentation:
+
+    RISC OS 2.00 /01 PRM
+    RISC OS 3.00 PRM (Unreleased on paper)
+    RISC OS 3.10 PRM
+    Acorn Desktop Assembler manual
+    Acorn Desktop C manual
+    Acorn DDE manual
+    Technical (Hardware) manual for all hardware variants
+
+Unfortunately, it doesn't contain the ARM data book!
+
+ In total, this works out, including the CD ROM drive to play it on, as not
+ much dearer than buying all the manuals on paper. In conjunction with the
+advanced searching options available, I reckon it's well worth it.
+
+*SHUTDOWN
+~~~~~~~~
+         Issue #3 thus bites the dust. I apologise for the delay in getting
+this one out, but it's involved rather more work than even Issue #2. Also,
+having an Electron Microscopy exam to revise for over Christmas didn't help.
+ As I have more exams at Easter, I can't say when Issue #4 will happen... I'm
+also running a little low on easy-to-implement Arc hacks to write up at the
+moment, as horizons widen and projects get bigger, giving me an inevitable
+backlog. The time may come when I'll document the homebuilt FPA and the
+multitasking BSD UNIX port (from src.doc.ic.ac.uk), including the code for
+UNIXFS:, but I doubt they'll be in the same issue, and certainly not in the
+same posting (goodbye, net.bandwidth)!
+
+ Meantime have a belated Happy 1993 from me, and happy hacking to you all.
+
+

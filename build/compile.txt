@@ -1,0 +1,3039 @@
+Sections:
+00: "seg8000" (8000-1EB00)
+
+
+Source: "main.asm"
+                            	     1: ; ============================================================================
+                            	     2: ; Shrinkler test harness.
+                            	     3: ; TODO: May become a Module at some point?
+                            	     4: ; ============================================================================
+                            	     5: 
+                            	     6: .equ _DEBUG, 1
+                            	     7: 
+                            	     8: .include "swis.h.asm"
+
+Source: "swis.h.asm"
+                            	     1: .equ OS_WriteC, 0
+                            	     2: .equ OS_WriteO, 2
+                            	     3: .equ OS_NewLine, 3
+                            	     4: .equ OS_Byte, 6
+                            	     5: .equ XOS_Byte, OS_Byte | (1 << 17)
+                            	     6: .equ OS_Word, 7
+                            	     7: .equ XOS_Word, OS_Word | (1 << 17)
+                            	     8: .equ OS_File, 8
+                            	     9: .equ OS_Exit, 0x11
+                            	    10: .equ OS_BreakPt, 0x17
+                            	    11: .equ OS_ChangeDynamicArea, 0x2a
+                            	    12: .equ OS_GenerateError, 0x2b
+                            	    13: .equ OS_ReadVduVariables, 0x31
+                            	    14: .equ OS_ReadMonotonicTime, 0x42
+                            	    15: .equ OS_Plot, 0x45
+                            	    16: .equ OS_ReadDynamicArea, 0x5c
+                            	    17: .equ OS_ConvertHex2, 0xd1
+                            	    18: .equ OS_ConvertHex4, 0xd2
+                            	    19: .equ OS_ConvertHex8, 0xd4
+                            	    20: .equ OS_ConvertCardinal1, 0xd5	
+                            	    21: .equ OS_ConvertCardinal4, 0xd8
+                            	    22: .equ OS_WriteI, 0x100
+                            	    23: 
+                            	    24: .equ OSByte_EventEnable, 14
+                            	    25: .equ OSByte_EventDisable, 13
+                            	    26: .equ OSByte_Vsync, 19
+                            	    27: .equ OSByte_WriteVDUBank, 112
+                            	    28: .equ OSByte_WriteDisplayBank, 113
+                            	    29: .equ OSByte_ReadKey, 129
+                            	    30: 
+                            	    31: .equ OSWord_WritePalette, 12
+                            	    32: 
+                            	    33: .equ IKey_LeftClick, 0xf6
+                            	    34: .equ IKey_RightClick, 0xf4
+                            	    35: .equ IKey_Space, 0x9d
+                            	    36: .equ IKey_Return, 0xB6
+                            	    37: .equ IKey_Escape, 0x8f
+                            	    38: .equ IKey_S, 0xae
+                            	    39: .equ IKey_D, 0xcd
+                            	    40: .equ IKey_R, 0xcc
+                            	    41: .equ IKey_ArrowUp, 198
+                            	    42: .equ IKey_ArrowDown, 214
+                            	    43: .equ IKey_ArrowLeft, 230
+                            	    44: .equ IKey_ArrowRight, 134
+                            	    45: 
+                            	    46: .equ DynArea_Screen, 2
+                            	    47: 
+                            	    48: .equ VD_ScreenStart, 148 
+                            	    49: 
+                            	    50: .equ OS_Claim, 0x1f
+                            	    51: .equ OS_Release, 0x20
+                            	    52: .equ OS_AddToVector, 0x47
+                            	    53: 
+                            	    54: .equ ErrorV, 0x01
+                            	    55: .equ EventV, 0x10
+                            	    56: .equ Event_VSync, 4
+                            	    57: 
+                            	    58: .equ QTM_Load, 0x47E40
+                            	    59: .equ QTM_Start, 0x47E41
+                            	    60: .equ QTM_Stop, 0x47E42
+                            	    61: .equ QTM_Pause, 0x47E43
+                            	    62: .equ QTM_SetSampleSpeed, 0x47E49
+                            	    63: .equ QTM_Pos, 0x47E46
+                            	    64: .equ QTM_Stereo, 0x47E4D
+                            	    65: .equ QTM_MusicOptions, 0x47E5E
+                            	    66: 
+                            	    67: .equ VIDC_Write, 0x03400000
+                            	    68: 
+                            	    69: .equ VIDC_Col0, 0x00000000
+                            	    70: .equ VIDC_Col1, 0x04000000
+                            	    71: .equ VIDC_Col2, 0x08000000
+                            	    72: .equ VIDC_Col3, 0x0c000000
+                            	    73: .equ VIDC_Col4, 0x10000000
+                            	    74: .equ VIDC_Col5, 0x14000000
+                            	    75: .equ VIDC_Col6, 0x18000000
+                            	    76: .equ VIDC_Col7, 0x1c000000
+                            	    77: .equ VIDC_Col8, 0x20000000
+                            	    78: .equ VIDC_Col9, 0x24000000
+                            	    79: .equ VIDC_Col10, 0x28000000
+                            	    80: .equ VIDC_Col11, 0x2c000000
+                            	    81: .equ VIDC_Col12, 0x30000000
+                            	    82: .equ VIDC_Col13, 0x34000000
+                            	    83: .equ VIDC_Col14, 0x38000000
+                            	    84: .equ VIDC_Col15, 0x3c000000
+                            	    85: .equ VIDC_Border, 0x40000000
+                            	    86: .equ VIDC_HBorderStart, 0x88000000      ; (M-1)/2 pixels << 14 [odd]
+                            	    87: .equ VIDC_HDisplayStart, 0x8C000000     ; (M-7)/2 MODE 9 pixels << 14 [x7]
+                            	    88: .equ VIDC_HDisplayEnd, 0x90000000       ; (M-7)/2 MODE 9 pixels << 14 [x7]
+                            	    89: .equ VIDC_HBorderEnd, 0x94000000        ; (M-1)/2 pixels << 14 [odd]
+                            	    90: .equ VIDC_VBorderStart, 0xA8000000      ; N-1 rasters << 14
+                            	    91: .equ VIDC_VDisplayStart, 0xAC000000     ; N-1 rasters << 14
+                            	    92: .equ VIDC_VDisplayEnd, 0xB0000000       ; N-1 rasters << 14
+                            	    93: .equ VIDC_VBorderEnd, 0xB4000000        ; N-1 rasters << 14
+                            	    94: 
+                            	    95: .equ MODE9_HCentrePixels, 291
+                            	    96: .equ MODE9_VCentreRasters, 166
+                            	    97: 
+
+Source: "main.asm"
+                            	     9: 
+                            	    10: .org 0x8000
+                            	    11: 
+                            	    12: ; ============================================================================
+                            	    13: ; Stack
+                            	    14: ; ============================================================================
+                            	    15: 
+                            	    16: Start:
+00:00008000 01DB8FE204D08DE2	    17:     adrl sp, stack_base
+00:00008008 FF0000EA        	    18: 	B main
+                            	    19: 
+00:0000800C 00              	    20: .skip 1024
+00:0000800D *
+                            	    21: stack_base:
+                            	    22: 
+                            	    23: ; ============================================================================
+                            	    24: ; Main
+                            	    25: ; ============================================================================
+                            	    26: 
+                            	    27: main:
+00:0000840C 04E02DE5        	    28: 	str lr, [sp, #-4]!
+                            	    29: 	; R0 = Compressed data
+                            	    30: 	; R1 = Decompressed data destination
+                            	    31: 	; R2 = Progress callback, can be zero if no callback is desired.
+                            	    32: 	;      Callback will be called continuously with
+                            	    33: 	;      D0 = Number of bytes decompressed so far
+                            	    34: 	;      A0 = Callback argument
+                            	    35: 	; R3 = Callback argument
+                            	    36: 
+                            	    37: 	;adr r0, compressed_data
+                            	    38: 	;adr r1, decompressed_data
+                            	    39: 	;mov r2, #0
+                            	    40: 	;mov r3, #0
+                            	    41: 	;bl ShrinklerDecompress
+                            	    42: 
+00:00008410 359E8FE2        	    43: 	adr r9, context
+00:00008414 7A0000EB        	    44: 	bl RangeInit
+00:00008418 1BAC8FE248A08AE2	    45: 	adr r10, compressed_data
+00:00008420 66BC8FE2D8B08BE2	    46: 	adr r11, decompressed_data
+00:00008428 66CC8FE2CFC08CE2	    47: 	adr r12, compressed_end
+00:00008430 0AC04CE0        	    48: 	sub r12, r12, r10			; data_size
+00:00008434 9B0000EB        	    49: 	bl LZDecode
+                            	    50: 
+00:00008438 04F09DE4        	    51: 	ldr pc, [sp], #4
+00:0000843C 110000EF        	    52: 	swi OS_Exit
+                            	    53: 
+                            	    54: ; ============================================================================
+                            	    55: ; Code
+                            	    56: ; ============================================================================
+                            	    57: 
+                            	    58: .equ INIT_ONE_PROB, 0x8000
+                            	    59: .equ ADJUST_SHIFT, 4
+                            	    60: .equ SINGLE_BIT_CONTEXTS, 1
+                            	    61: .equ NUM_CONTEXTS, 1536
+                            	    62: .equ PARITY_MASK, 1
+                            	    63: 
+                            	    64: .equ NUM_SINGLE_CONTEXTS, 1
+                            	    65: .equ NUM_CONTEXT_GROUPS, 4
+                            	    66: 
+                            	    67: .equ CONTEXT_KIND, 0
+                            	    68: .equ CONTEXT_REPEATED, -1
+                            	    69: .equ CONTEXT_GROUP_LIT, 0
+                            	    70: .equ CONTEXT_GROUP_OFFSET, 2
+                            	    71: .equ CONTEXT_GROUP_LENGTH, 3
+                            	    72: 
+                            	    73: ; Think I need to build this up from the C implementation,
+                            	    74: ; rather than port the 68K code line-by-line!
+                            	    75: ;.include "arc-shrinkler.asm"
+                            	    76: 
+                            	    77: ; R1 = (local)
+                            	    78: ; R2 = intervalvalue 		(RangeDecoder)
+                            	    79: ; R3 = intervalsize			(RangeDecoder)
+                            	    80: ; R4 = uncertainty			(RangeDecoder)
+                            	    81: ; R5 = (local)
+                            	    82: ; R6 = bit_index			(RangeDecoder)
+                            	    83: ; R7 = (local)
+                            	    84: ; R8 = (local)
+                            	    85: ; R9 = context				(global)
+                            	    86: ; R10 = source				(global)
+                            	    87: ; R11 = dest				(global)
+                            	    88: ; R12 = data_size			?
+                            	    89: ; Returns R0 = bit
+                            	    90: GetBit:
+                            	    91: 	; R1 = bit_in_byte
+00:00008440 0610E0E1        	    92: 	mvn r1, r6					; (~bit_index)
+00:00008444 071001E2        	    93: 	and r1, r1, #7				; int bit_in_byte = (~bit_index) & 7;
+                            	    94: 
+00:00008448 8C0156E1        	    95: 	cmp r6, r12, lsl #3			; if (bit_index++ >= data.size() * 8) {
+00:0000844C 030000BA        	    96: 	blt .1
+00:00008450 016086E2        	    97: 	add r6, r6, #1				; bit_index++
+00:00008454 8440A0E1        	    98: 	mov r4, r4, lsl #1			; uncertainty <<= 1;
+00:00008458 0000A0E3        	    99: 	mov r0, #0					; return 0;
+00:0000845C 0EF0A0E1        	   100: 	mov pc, lr
+                            	   101: .1:
+                            	   102: 	; TODO: Don't read byte every time!
+00:00008460 A601DAE7        	   103: 	ldrb r0, [r10, r6, lsr #3]	; int bit = (data[byte_index]								
+00:00008464 3001A0E1        	   104: 	mov r0, r0, lsr r1			;            >> bit_in_byte)
+00:00008468 010000E2        	   105: 	and r0, r0, #1				; 			 & 1;
+00:0000846C 016086E2        	   106: 	add r6, r6, #1				; bit_index++
+00:00008470 0EF0A0E1        	   107: 	mov pc, lr					; return bit
+                            	   108: 
+                            	   109: ; R1 = (local)
+                            	   110: ; R2 = intervalvalue 		(RangeDecoder)
+                            	   111: ; R3 = intervalsize			(RangeDecoder)
+                            	   112: ; R4 = uncertainty			(RangeDecoder)
+                            	   113: ; R5 = (local)
+                            	   114: ; R6 = bit_index			(RangeDecoder)
+                            	   115: ; R7 = (local)
+                            	   116: ; R8 = (local)
+                            	   117: ; R9 = context				(global)
+                            	   118: ; R10 = source				(global)
+                            	   119: ; R11 = dest				(global)
+                            	   120: ; R12 = data_size			?
+                            	   121: ;
+                            	   122: 
+                            	   123: ; Decode a bit in the given context.
+                            	   124: ; Returns the decoded bit value.
+                            	   125: ; R0 = context_index
+                            	   126: ; Returns R0 = bit
+                            	   127: RangeDecodeBit:
+00:00008474 A2402DE9        	   128: 	stmfd sp!, {r1, r5, r7, lr}	; <= REGISTER PRESSURE!
+                            	   129: 
+                            	   130: 	.if _DEBUG
+00:00008478 000050E3        	   131: 	cmp r0, #0					; assert(context_index < contexts.size());
+00:0000847C 0100004A        	   132: 	bmi .4
+00:00008480 060C50E3        	   133: 	cmp r0, #NUM_CONTEXTS		; assert(context_index < contexts.size());
+00:00008484 010000BA        	   134: 	blt .3
+                            	   135: 	.4:
+00:00008488 B4008FE2        	   136: 	adr r0, assert1
+00:0000848C 2B0000EF        	   137: 	swi OS_GenerateError
+                            	   138: 	.3:
+                            	   139: 	.endif
+                            	   140: 
+00:00008490 04002DE5        	   141: 	str r0, [sp, #-4]!			; <= REGISTER PRESSURE!
+                            	   142: .1:
+00:00008494 020953E3        	   143: 	cmp r3, #0x8000				; while (intervalsize < 0x8000) {
+00:00008498 030000AA        	   144: 	bge .2
+00:0000849C 8330A0E1        	   145: 	mov r3, r3, lsl #1			; 	intervalsize <<= 1;
+00:000084A0 E6FFFFEB        	   146: 	bl GetBit					; 	r0=GetBit()
+00:000084A4 822080E1        	   147: 	orr r2, r0, r2, lsl #1		; 	intervalvalue = (intervalvalue << 1) | getBit();
+00:000084A8 F9FFFFEA        	   148: 	b .1						; }
+                            	   149: .2:
+00:000084AC 04009DE4        	   150: 	ldr r0, [sp], #4			; <= REGISTER PRESSURE!
+00:000084B0 001199E7        	   151: 	ldr r1, [r9, r0, lsl #2]	; unsigned prob = contexts[context_index];
+                            	   152: 
+                            	   153: 	; R0 =	int bit;
+                            	   154: 	; R7 =	unsigned new_prob;
+                            	   155: 	; R8 =	unsigned threshold
+00:000084B4 930108E0        	   156: 	mul r8, r3, r1				; unsigned threshold = (intervalsize * prob) >> 16;
+00:000084B8 2888A0E1        	   157: 	mov r8, r8, lsr #16			
+                            	   158: 
+00:000084BC 080052E1        	   159: 	cmp r2, r8					; if (intervalvalue >= threshold)
+00:000084C0 0C0000BA        	   160: 	blt One
+                            	   161: 	; Zero						; {
+00:000084C4 082042E0        	   162: 	sub r2, r2, r8				; intervalvalue -= threshold;
+00:000084C8 083043E0        	   163: 	sub r3, r3, r8				; intervalsize -= threshold;
+00:000084CC 217241E0        	   164: 	sub r7, r1, r1, lsr #ADJUST_SHIFT	; new_prob = prob - (prob >> ADJUST_SHIFT);	
+                            	   165: 
+                            	   166: 	.if _DEBUG
+00:000084D0 000057E3        	   167: 	cmp r7, #0					; assert(new_prob > 0);
+00:000084D4 0100004A        	   168: 	bmi .5
+00:000084D8 010857E3        	   169: 	cmp r7, #0x10000			; assert(new_prob < 0x10000);
+00:000084DC 010000BA        	   170: 	blt .6
+                            	   171: 	.5:
+00:000084E0 DC008FE2        	   172: 	adr r0, assert3
+00:000084E4 2B0000EF        	   173: 	swi OS_GenerateError
+                            	   174: 	.6:
+                            	   175: 	.endif
+                            	   176: 
+00:000084E8 007189E7        	   177: 	str r7, [r9, r0, lsl #2]	; contexts[context_index] = new_prob;
+00:000084EC 0000A0E3        	   178: 	mov r0, #0					; bit = 0;
+00:000084F0 A240BDE8        	   179: 	ldmfd sp!, {r1, r5, r7, lr}	; return bit
+00:000084F4 0EF0A0E1        	   180: 	mov pc, lr
+                            	   181: 
+                            	   182: One:
+                            	   183: 	.if _DEBUG
+00:000084F8 047082E0        	   184: 	add r7, r2, r4
+00:000084FC 080057E1        	   185: 	cmp r7, r8					; assert(intervalvalue + uncertainty <= threshold);
+00:00008500 010000DA        	   186: 	ble .1
+00:00008504 78008FE2        	   187: 	adr r0, assert2
+00:00008508 2B0000EF        	   188: 	swi OS_GenerateError
+                            	   189: 	.1:
+                            	   190: 	.endif
+                            	   191: 
+00:0000850C 0830A0E1        	   192: 	mov r3, r8					; intervalsize = threshold;
+00:00008510 0F7C81E2FF7087E2	   193: 	add r7, r1, #0xffff >> ADJUST_SHIFT	; new_prob = prob + (0xffff >> ADJUST_SHIFT) 
+00:00008518 217247E0        	   194: 	sub r7, r7, r1, lsr #ADJUST_SHIFT	;          - (prob >> ADJUST_SHIFT);
+                            	   195: 
+                            	   196: 	.if _DEBUG
+00:0000851C 000057E3        	   197: 	cmp r7, #0					; assert(new_prob > 0);
+00:00008520 0100004A        	   198: 	bmi .4 
+00:00008524 010857E3        	   199: 	cmp r7, #0x10000			; assert(new_prob < 0x10000);
+00:00008528 010000BA        	   200: 	blt .3
+                            	   201: 	.4:
+00:0000852C 90008FE2        	   202: 	adr r0, assert3
+00:00008530 2B0000EF        	   203: 	swi OS_GenerateError
+                            	   204: 	.3:
+                            	   205: 	.endif
+                            	   206: 
+00:00008534 007189E7        	   207: 	str r7, [r9, r0, lsl #2]	; contexts[context_index] = new_prob;
+00:00008538 0100A0E3        	   208: 	mov r0, #1					; bit = 1;
+00:0000853C A240BDE8        	   209: 	ldmfd sp!, {r1, r5, r7, lr}	; return bit
+00:00008540 0EF0A0E1        	   210: 	mov pc, lr
+                            	   211: 
+                            	   212: .if _DEBUG
+                            	   213: assert1: ;The error block
+00:00008544 12000000        	   214:     .long 18
+00:00008548 6173736572742863	   215: 	.byte "assert(context_index < contexts.size()); FAILED"
+00:00008550 6F6E746578745F69
+00:00008558 6E646578203C2063
+00:00008560 6F6E74657874732E
+00:00008568 73697A652829293B
+00:00008570 204641494C4544
+                            	   216: 	.align 4
+00:00008580 00000000        	   217: 	.long 0
+                            	   218: 
+                            	   219: assert2: ;The error block
+00:00008584 12000000        	   220:     .long 18
+00:00008588 6173736572742869	   221: 	.byte "assert(intervalvalue + uncertainty <= threshold); FAILED"
+00:00008590 6E74657276616C76
+00:00008598 616C7565202B2075
+00:000085A0 6E6365727461696E
+00:000085A8 7479203C3D207468
+00:000085B0 726573686F6C6429
+00:000085B8 3B204641494C4544
+                            	   222: 	.align 4
+00:000085C0 00000000        	   223: 	.long 0
+                            	   224: 
+                            	   225: assert3: ;The error block
+00:000085C4 12000000        	   226:     .long 18
+00:000085C8 617373657274286E	   227: 	.byte "assert(new_prob > 0 && new_prob < 0x10000); FAILED"
+00:000085D0 65775F70726F6220
+00:000085D8 3E2030202626206E
+00:000085E0 65775F70726F6220
+00:000085E8 3C20307831303030
+00:000085F0 30293B204641494C
+00:000085F8 4544
+                            	   228: 	.align 4
+00:00008600 00000000        	   229: 	.long 0
+                            	   230: .endif
+                            	   231: 
+                            	   232: RangeInit:
+00:00008604 0060A0E3        	   233: 	mov r6, #0					; bit_index = 0;
+00:00008608 0130A0E3        	   234: 	mov r3, #1					; intervalsize = 1;
+00:0000860C 0020A0E3        	   235: 	mov r2, #0					; intervalvalue = 0;
+00:00008610 0140A0E3        	   236: 	mov r4, #1					; uncertainty = 1;
+                            	   237: 
+00:00008614 0219A0E3        	   238: 	mov r1, #INIT_ONE_PROB
+00:00008618 050CA0E3FF0080E3	   239: 	mov r0, #NUM_CONTEXTS-1
+                            	   240: .1:
+00:00008620 001189E7        	   241: 	str r1, [r9, r0, lsl #2]	; contexts[context_index] = 0x8000;
+00:00008624 010050E2        	   242: 	subs r0, r0, #1
+00:00008628 FCFFFF5A        	   243: 	bpl .1
+00:0000862C 0EF0A0E1        	   244: 	mov pc, lr
+                            	   245: 
+                            	   246: 
+                            	   247: ; R1 = (local)
+                            	   248: ; R2 = intervalvalue 		(RangeDecoder)
+                            	   249: ; R3 = intervalsize			(RangeDecoder)
+                            	   250: ; R4 = uncertainty			(RangeDecoder)
+                            	   251: ; R5 = (local)
+                            	   252: ; R6 = bit_index			(RangeDecoder)
+                            	   253: ; R7 = (local)
+                            	   254: ; R8 = (local)
+                            	   255: ; R9 = context				(global)
+                            	   256: ; R10 = source				(global)
+                            	   257: ; R11 = dest				(global)
+                            	   258: ; R12 = data_size			?
+                            	   259: 
+                            	   260: ; Decode a number >= 2 using a variable-length encoding.
+                            	   261: ; Returns the decoded number.
+                            	   262: ; R0 = base_context
+                            	   263: ; Returns R0 = number
+                            	   264: RangeDecodeNumber:
+00:00008630 04E02DE5        	   265: 	str lr, [sp, #-4]!
+00:00008634 0050A0E1        	   266: 	mov r5, r0				; base_context
+00:00008638 0010A0E3        	   267: 	mov r1, #0				; for (i = 0 ;; i++) {
+                            	   268: .1:
+00:0000863C 810085E0        	   269: 	add r0, r5, r1, lsl #1	; 	context = base_context + (i * 2
+00:00008640 020080E2        	   270: 	add r0, r0, #2			;           + 2);
+00:00008644 8AFFFFEB        	   271: 	bl RangeDecodeBit		;   decode(context)
+00:00008648 000050E3        	   272: 	cmp r0, #0
+00:0000864C 0100000A        	   273: 	beq .2					;   if (decode(context) == 0) break;
+00:00008650 011081E2        	   274: 	add r1, r1, #1			;   i++ }
+00:00008654 F8FFFFEA        	   275: 	b .1
+                            	   276: .2:
+00:00008658 0170A0E3        	   277: 	mov r7, #1				; int number = 1;
+                            	   278: .3:							; for (; i >= 0 ; i--) {
+00:0000865C 810085E0        	   279: 	add r0, r5, r1, lsl #1	;   context = base_context + (i * 2
+00:00008660 010080E2        	   280: 	add r0, r0, #1			; 		    + 1);
+00:00008664 82FFFFEB        	   281: 	bl RangeDecodeBit		;   decode(context);
+00:00008668 877080E1        	   282: 	orr r7, r0, r7, lsl #1	;   number = (number << 1) | bit;
+00:0000866C 011051E2        	   283: 	subs r1, r1, #1			;   i--
+00:00008670 F9FFFF5A        	   284: 	bpl .3					; }
+                            	   285: 
+00:00008674 0700A0E1        	   286: 	mov r0, r7
+00:00008678 04F09DE4        	   287: 	ldr pc, [sp], #4		; return number;
+                            	   288: 
+                            	   289: ; R1 = (local)
+                            	   290: ; R2 = intervalvalue 		(RangeDecoder)
+                            	   291: ; R3 = intervalsize			(RangeDecoder)
+                            	   292: ; R4 = uncertainty			(RangeDecoder)
+                            	   293: ; R5 = (local)
+                            	   294: ; R6 = bit_index			(RangeDecoder)
+                            	   295: ; R7 = (local)
+                            	   296: ; R8 = (local)
+                            	   297: ; R9 = context				(global)
+                            	   298: ; R10 = source				(global)
+                            	   299: ; R11 = dest				(global)
+                            	   300: ; R12 = data_size			?
+                            	   301: ;
+                            	   302: ; R0 = context
+                            	   303: ; Returns R0 = decode(NUM_SINGLE_CONTEXTS + context)
+                            	   304: decode:
+00:0000867C A2412DE9        	   305: 	stmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+00:00008680 010080E2        	   306: 	add r0, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + context
+00:00008684 7AFFFFEB        	   307: 	bl RangeDecodeBit				; decode(...)
+00:00008688 A241BDE8        	   308: 	ldmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+00:0000868C 0EF0A0E1        	   309: 	mov pc, lr
+                            	   310: 
+                            	   311: ; R0 = context_group
+                            	   312: ; Returns R0 = decodeNumber(NUM_SINGLE_CONTEXTS + (context_group << 8))
+                            	   313: decodeNumber:
+00:00008690 A2412DE9        	   314: 	stmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+00:00008694 0004A0E1        	   315: 	mov r0, r0, lsl #8
+00:00008698 010080E2        	   316: 	add r0, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + (context_group << 8));
+00:0000869C E3FFFFEB        	   317: 	bl RangeDecodeNumber			; decodeNumber(...)
+00:000086A0 A241BDE8        	   318: 	ldmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+00:000086A4 0EF0A0E1        	   319: 	mov pc, lr
+                            	   320: 
+                            	   321: 
+                            	   322: ; R1 = (local)
+                            	   323: ; R2 = intervalvalue 		(RangeDecoder)
+                            	   324: ; R3 = intervalsize			(RangeDecoder)
+                            	   325: ; R4 = uncertainty			(RangeDecoder)
+                            	   326: ; R5 = (local)
+                            	   327: ; R6 = bit_index			(RangeDecoder)
+                            	   328: ; R7 = (local)
+                            	   329: ; R8 = (local)
+                            	   330: ; R9 = context				(global)
+                            	   331: ; R10 = source				(global)
+                            	   332: ; R11 = dest				(global)
+                            	   333: ; R12 = data_size			?
+                            	   334: ;
+                            	   335: ; Returns R0 = success
+                            	   336: LZDecode:
+00:000086A8 04E02DE5        	   337: 	str lr, [sp, #-4]!
+00:000086AC 0010A0E3        	   338: 	mov r1, #0					; bool ref = false;
+00:000086B0 0050A0E3        	   339: 	mov r5, #0					; bool prev_was_ref = false;
+00:000086B4 0070A0E3        	   340: 	mov r7, #0					; int pos = 0;
+00:000086B8 0080A0E3        	   341: 	mov r8, #0					; int offset = 0;
+                            	   342: 
+                            	   343: LZDecode_loop:					; do {
+00:000086BC 000051E3        	   344: 	cmp r1, #0					; if (ref) {
+00:000086C0 1400000A        	   345: 	beq LZDecode_literal
+                            	   346: 
+00:000086C4 0000A0E3        	   347: 	mov r0, #0					; bool repeated = false;
+00:000086C8 000055E3        	   348: 	cmp r5, #0					; if (!prev_was_ref) {
+00:000086CC 0000E003        	   349: 	moveq r0, #CONTEXT_REPEATED ;
+00:000086D0 E9FFFF0B        	   350: 	bleq decode					;   repeated = decode(LZEncoder::CONTEXT_REPEATED);
+                            	   351: 								; }
+00:000086D4 000050E3        	   352: 	cmp r0, #0					; if (!repeated) {
+00:000086D8 0400001A        	   353: 	bne .1						;
+00:000086DC 0200A0E3        	   354: 	mov r0, #CONTEXT_GROUP_OFFSET
+00:000086E0 EAFFFFEB        	   355: 	bl decodeNumber				;   offset = decodeNumber(LZEncoder::CONTEXT_GROUP_OFFSET)
+00:000086E4 028040E2        	   356: 	sub r8, r0, #2				;	       - 2;
+00:000086E8 000058E3        	   357: 	cmp r8, #0					;
+00:000086EC 1C00000A        	   358: 	beq LZDecode_break			;   if (offset == 0) break;
+                            	   359: .1:								; }
+00:000086F0 0300A0E3        	   360: 	mov r0, #CONTEXT_GROUP_LENGTH
+00:000086F4 E5FFFFEB        	   361: 	bl decodeNumber				; int length = decodeNumber(LZEncoder::CONTEXT_GROUP_LENGTH);
+                            	   362: 
+00:000086F8 007087E0        	   363: 	add r7, r7, r0				; pos += length;
+                            	   364: 
+                            	   365: 	; Copied from Verifier::receiveReference(offset, length)
+00:000086FC 08504BE0        	   366: 	sub r5, r11, r8				; pos - offset
+                            	   367: .2:								; for (int i = 0 ; i < length ; i++) {
+00:00008700 0110D5E4        	   368: 	ldrb r1, [r5], #1			; 	data[pos - offset + i]
+00:00008704 0110CBE4        	   369: 	strb r1, [r11], #1			; 	data[pos + i]
+00:00008708 010050E2        	   370: 	subs r0, r0, #1				;   i--
+00:0000870C FBFFFF1A        	   371: 	bne .2						; }
+                            	   372: 
+00:00008710 0150A0E3        	   373: 	mov r5, #1					; prev_was_ref = true;
+00:00008714 0C0000EA        	   374: 	b LZDecode_kind
+                            	   375: 
+                            	   376: LZDecode_literal:				; } else {
+00:00008718 04B02DE5        	   377: 	str r11, [sp, #-4]!			;   <=REGISTER PRESSURE!
+00:0000871C 015007E2        	   378: 	and r5, r7, #PARITY_MASK	;   int parity = pos & parity_mask;
+00:00008720 0110A0E3        	   379: 	mov r1, #1					;   int context = 1;
+00:00008724 07B0A0E3        	   380: 	mov r11, #7					;   for (int i = 7 ; i >= 0 ; i--) {
+                            	   381: .1:
+00:00008728 050481E1        	   382: 	orr r0, r1, r5, lsl #8		;     (parity << 8) | context
+00:0000872C D2FFFFEB        	   383: 	bl decode					;     int bit = decode((parity << 8) | context);
+00:00008730 811080E1        	   384: 	orr r1, r0, r1, lsl #1		;     context = (context << 1) | bit;
+00:00008734 01B05BE2        	   385: 	subs r11, r11, #1			;     i--
+00:00008738 FAFFFF5A        	   386: 	bpl .1						;   }
+                            	   387: 
+00:0000873C 04B09DE4        	   388: 	ldr r11, [sp], #4			;   <=REGISTER PRESSURE!
+00:00008740 0110CBE4        	   389: 	strb r1, [r11], #1			;   *pDest++ = lit;
+00:00008744 017087E2        	   390: 	add r7, r7, #1				;   pos += 1;
+00:00008748 0050A0E3        	   391: 	mov r5, #0					;   prev_was_ref = false;
+                            	   392: 								; }
+                            	   393: LZDecode_kind:
+00:0000874C 010007E2        	   394: 	and r0, r7, #PARITY_MASK	; int parity = pos & parity_mask;
+00:00008750 0004A0E1        	   395: 	mov r0, r0, lsl #8
+00:00008754 000080E2        	   396: 	add r0, r0, #CONTEXT_KIND
+00:00008758 C7FFFFEB        	   397: 	bl decode					; decode(LZEncoder::CONTEXT_KIND + (parity << 8));
+00:0000875C 0010A0E1        	   398: 	mov r1, r0					; ref = decode(...)
+00:00008760 D5FFFFEA        	   399: 	b LZDecode_loop
+                            	   400: 
+                            	   401: LZDecode_break:
+00:00008764 04F09DE4        	   402: 	ldr pc, [sp], #4			; return true
+                            	   403: 
+                            	   404: ; ============================================================================
+                            	   405: ; Data
+                            	   406: ; ============================================================================
+                            	   407: 
+                            	   408: context:
+00:00008768 00              	   409: .skip NUM_CONTEXTS*4
+00:00008769 *
+                            	   410: 
+                            	   411: compressed_data:
+00:00009F68 DF60C71772239000	   412: .incbin "test.shr"
+00:00009F70 1F81D71095229187
+00:00009F78 FC9DF7E140B1757B
+00:00009F80 00896396B6E0F7EA
+00:00009F88 3EB4BB386D5730E3
+00:00009F90 CEC1869EDFA90896
+00:00009F98 9236A0F130F50AB5
+00:00009FA0 DAFA6BA9B80DE8D6
+00:00009FA8 69B35A480D5005C2
+00:00009FB0 F5EA23F0C5F2F6B4
+00:00009FB8 E059D3863F8E75C7
+00:00009FC0 DB9CDFCF8A956687
+00:00009FC8 292972288DE21825
+00:00009FD0 858AC923A8514C18
+00:00009FD8 3F2F8A73D7F5B5E9
+00:00009FE0 EA5BA5E807B1DF14
+00:00009FE8 A5AF7FBDEB126769
+00:00009FF0 0A0DE2914E5971EC
+00:00009FF8 6E12FB431B6520F4
+00:0000A000 893D107AC14FC17A
+00:0000A008 A358645D64FFF540
+00:0000A010 4B0FFEF12994919E
+00:0000A018 C6948306ED17B58F
+00:0000A020 B7F80602F7853F7A
+00:0000A028 F6B39BFC4B357DCA
+00:0000A030 79BFC8FB548D77EE
+00:0000A038 51376C5BF37C43CE
+00:0000A040 F3724091C1DD3A3D
+00:0000A048 C97CA9E0E7B8ADFC
+00:0000A050 F628C9074F023991
+00:0000A058 002E22264A951FBA
+00:0000A060 8404084A1C9BA9B6
+00:0000A068 FAE7FA643E94BCCF
+00:0000A070 D0DE2439055DC7E6
+00:0000A078 4381B28C14483121
+00:0000A080 4FA17B1916FA41A7
+00:0000A088 BC08152EE199ACF4
+00:0000A090 F7F5C601BAA49813
+00:0000A098 4F8149E2E79BE3F7
+00:0000A0A0 25ADB5BC72D13D44
+00:0000A0A8 0332C452EEF0D53E
+00:0000A0B0 4CC612181658F159
+00:0000A0B8 5B016321DAB4F518
+00:0000A0C0 B4BA0228B9E3E693
+00:0000A0C8 FE6CA68ED54B9AAB
+00:0000A0D0 0A4694C05590D5F7
+00:0000A0D8 EF95D81391DCD35E
+00:0000A0E0 25DB9F7B29099642
+00:0000A0E8 7142270FFFE42E0C
+00:0000A0F0 91F327762B418F4F
+00:0000A0F8 09C044D34C186991
+00:0000A100 6C1F229DA919A13A
+00:0000A108 02D9BC94FFF1BCA9
+00:0000A110 F07F353AA2C98B78
+00:0000A118 EDFDBAA5089C0DF0
+00:0000A120 16B08DA54903E29B
+00:0000A128 76FB78904E444B1C
+00:0000A130 2B7C592E9ACC0612
+00:0000A138 01735936C53269F9
+00:0000A140 40D65D7F0D3451A7
+00:0000A148 527A2CE668D8A96E
+00:0000A150 1586FCA6CBE82A15
+00:0000A158 B47292ECFE6179C9
+00:0000A160 7377B6BDFE5FDAE1
+00:0000A168 D2C7856E0420E7B9
+00:0000A170 B5746358EBBDCD53
+00:0000A178 34CD7A6A9EA4A7C6
+00:0000A180 0877428EBD9A91E9
+00:0000A188 076D76262945731C
+00:0000A190 79D2DCFA53631A4D
+00:0000A198 75233FB2B8AE958C
+00:0000A1A0 3FC4E19FEFDE2134
+00:0000A1A8 BFA1750CEE022BBA
+00:0000A1B0 C897590CF96A96C4
+00:0000A1B8 5B97435059C93F85
+00:0000A1C0 4FBC2CC56B4B971E
+00:0000A1C8 4425DFF004CB0486
+00:0000A1D0 4F1FC2C57E1C4AC7
+00:0000A1D8 F684603EDE0F66E5
+00:0000A1E0 B65901BBC3F28EFC
+00:0000A1E8 164786E593BA10C7
+00:0000A1F0 C03B535871659B69
+00:0000A1F8 27C9925130F7C123
+00:0000A200 76B51B8B4C82E3DE
+00:0000A208 F5CF0CBB5604FFCA
+00:0000A210 8B41A2CBDE1A8C70
+00:0000A218 388024C06A365368
+00:0000A220 B85A62A1E42753F4
+00:0000A228 06E3AC9A79E264F6
+00:0000A230 2826FE97EEBAC081
+00:0000A238 9CD3575FCFDB7BEB
+00:0000A240 A1BCF56DCE65227D
+00:0000A248 229AD465B4D27526
+00:0000A250 CCC8B8EF8DC5E223
+00:0000A258 C88FC0A7A4E69C20
+00:0000A260 BCE912F177C0235A
+00:0000A268 4E8A6CE3C0B4305E
+00:0000A270 8A7D0618BAD59ECB
+00:0000A278 E6B4E809D55DDD73
+00:0000A280 AF6054101FDA3943
+00:0000A288 C8B848460154C6D4
+00:0000A290 B45A8C3DFA93BBDB
+00:0000A298 52C6794E27060AB1
+00:0000A2A0 35237295AF11933E
+00:0000A2A8 CAA21F1D94750C1A
+00:0000A2B0 BE548FAAD0DAA844
+00:0000A2B8 97CAF58CAED70D8B
+00:0000A2C0 8ED11D8F1A42A09F
+00:0000A2C8 EAB4C742025F0DB0
+00:0000A2D0 FAFF76696D7F4DF2
+00:0000A2D8 DDECDA795C29EFC9
+00:0000A2E0 38A163775680A4C6
+00:0000A2E8 B450F8DE5CB7C242
+00:0000A2F0 6239A69F7F783142
+00:0000A2F8 B9A55EA32E6D5466
+00:0000A300 B15C6FD1259B5C2F
+00:0000A308 FC0E0C34FD75CACC
+00:0000A310 648DD80CD1119683
+00:0000A318 7679C01613B2BF30
+00:0000A320 A93AEF8597FF9591
+00:0000A328 2393DEE5C9E0BC51
+00:0000A330 BC33A854791D2B33
+00:0000A338 BBD3BD2342335C25
+00:0000A340 2A5EA3EB314F58F6
+00:0000A348 F0B252BE51002FC3
+00:0000A350 CF345A411FC1618D
+00:0000A358 FE19B818DA6FDBFA
+00:0000A360 1888237181D960DB
+00:0000A368 A50E9195BF7A2137
+00:0000A370 685BD6F8EAD775D9
+00:0000A378 0A195C50497F28C7
+00:0000A380 BCC862CD5ED63C9C
+00:0000A388 C6CB09BC00F65192
+00:0000A390 41A58AD315384A71
+00:0000A398 C401A875BCE2F4E9
+00:0000A3A0 979CC204489526A3
+00:0000A3A8 DBFB654A09C26836
+00:0000A3B0 C87D986F7445869F
+00:0000A3B8 A8ED31678DFD7D34
+00:0000A3C0 C8DAD725D78060B5
+00:0000A3C8 978659F718AA0B6F
+00:0000A3D0 5293446108B5B24C
+00:0000A3D8 8A91E49C3DA54138
+00:0000A3E0 877BF52A4CED2FD5
+00:0000A3E8 84EF7A4E1F0A3D5D
+00:0000A3F0 4A1EC6FAC54F6375
+00:0000A3F8 18568EC2D4F26706
+00:0000A400 03AF13F7A2A5A08E
+00:0000A408 FF62E592A22B757B
+00:0000A410 3FE7A038F7AD5BEB
+00:0000A418 97A5920617033210
+00:0000A420 14A5CA5B11D53514
+00:0000A428 3E673A63DDC93DCC
+00:0000A430 92A7725550AB629B
+00:0000A438 C89502861E2EC33F
+00:0000A440 7698FFB850B609E7
+00:0000A448 0BCB743A6082A42A
+00:0000A450 44FF11BDE857677C
+00:0000A458 2D7646B2DBAA5E75
+00:0000A460 F284D01152786956
+00:0000A468 FFEB0BDDB1F83111
+00:0000A470 2F0ED1BFBA425E77
+00:0000A478 355793B42DE65F56
+00:0000A480 92E0D20B6B6804A0
+00:0000A488 FA14FE7681B7BC10
+00:0000A490 A9384984E5AFB140
+00:0000A498 7A750CD2CCA9DC53
+00:0000A4A0 92A5035BFD71E0EA
+00:0000A4A8 B819A0EE93B91B0E
+00:0000A4B0 150F26E6283AFDCD
+00:0000A4B8 986CDFD2773077B8
+00:0000A4C0 C77B052169DE28F4
+00:0000A4C8 F7ACEB4C8732C966
+00:0000A4D0 FCF7BDC5862AED3C
+00:0000A4D8 46CBFC5D2E91B2D3
+00:0000A4E0 6A362057B5611EDF
+00:0000A4E8 632A6616D800F113
+00:0000A4F0 F18A8A81198219DE
+00:0000A4F8 376ECC64296EBFB1
+00:0000A500 CEDAD9E9A37F6729
+00:0000A508 2DE7130C8F318683
+00:0000A510 0CADC628BE60BC96
+00:0000A518 1C727F5DE34F9BEA
+00:0000A520 49DB55ADA1C7D29F
+00:0000A528 A9508E208DDAAA37
+00:0000A530 416914F1E48B8468
+00:0000A538 2B77EFFE0B6748C4
+00:0000A540 9D72D204C145A203
+00:0000A548 05D76A510DB599DD
+00:0000A550 A4687EC6EE7F593D
+00:0000A558 1341B4B39580CBA3
+00:0000A560 005EB709E392D6BC
+00:0000A568 02280EAAD558C62A
+00:0000A570 341F501122D9FD60
+00:0000A578 929720BDC87710E8
+00:0000A580 13C5B551EC07281F
+00:0000A588 C8A0478672D9B7BC
+00:0000A590 834AF2DDA129C84D
+00:0000A598 67042DA7BF3CB5F0
+00:0000A5A0 F4EE6F7AD413E927
+00:0000A5A8 9A64DFF73E84C116
+00:0000A5B0 261FFDC7F5000314
+00:0000A5B8 08059E85081E0BE8
+00:0000A5C0 F7101137CF29CC47
+00:0000A5C8 D2600081A01460F2
+00:0000A5D0 06D59919C8252C77
+00:0000A5D8 69D448993E2362FC
+00:0000A5E0 401E459B8FE4DEBE
+00:0000A5E8 18757128011F2D36
+00:0000A5F0 2E9EDEAF4CED6E51
+00:0000A5F8 4588A8D77AD5C97C
+00:0000A600 94D7499FD876EC3D
+00:0000A608 43D3636DBA3CCA15
+00:0000A610 2C9EF378401E624F
+00:0000A618 B95EB463A519F704
+00:0000A620 47DA778B8A04CB42
+00:0000A628 1D212B212C331018
+00:0000A630 20FADC8EACF259FF
+00:0000A638 FD5A1FC7F13B2C35
+00:0000A640 CAC2723904C4479A
+00:0000A648 236CB2F9D0549F8C
+00:0000A650 9B99D369FDEA4F5F
+00:0000A658 4C7A15DA33698DED
+00:0000A660 8654BDCEC20DB801
+00:0000A668 91A3953B6B53751F
+00:0000A670 0489BE2C67658CB8
+00:0000A678 56D9FA5AFCB0AC9C
+00:0000A680 9663FF0807D58D4E
+00:0000A688 A6E7D3FE84427E71
+00:0000A690 FEBF2B18589CFF79
+00:0000A698 426C9F49958F4F36
+00:0000A6A0 ED348DD2645FD77E
+00:0000A6A8 B82DF54EFCBCDE11
+00:0000A6B0 C920F4DFE8AD34C9
+00:0000A6B8 1BCA75A7E90CE0EB
+00:0000A6C0 04D8402BB018F053
+00:0000A6C8 CC938D1182C00E35
+00:0000A6D0 1470F14F0D58A621
+00:0000A6D8 E03F1C6EB59114CF
+00:0000A6E0 20B7C51E99F5EB97
+00:0000A6E8 9D026ED1854948D8
+00:0000A6F0 1BF9FE6A166F2BC0
+00:0000A6F8 A99C0D3662814A7C
+00:0000A700 334F9B5462BF8E05
+00:0000A708 5B2067A566F48AA8
+00:0000A710 721107BDADFABF01
+00:0000A718 13B1C1E1B86FB36F
+00:0000A720 C83AC9EA8A425254
+00:0000A728 14E6648A430B939F
+00:0000A730 898A8402A68DED60
+00:0000A738 C0D30EC5592B1902
+00:0000A740 502499EC1665AB1E
+00:0000A748 B11BC85A62B20F6A
+00:0000A750 035352AD81CA6612
+00:0000A758 52D587FA8FC13FF8
+00:0000A760 7FA71E9AB0477BF9
+00:0000A768 899D09CBC762EBA2
+00:0000A770 9C9443F49EFAFE52
+00:0000A778 7029653DD5BF3C30
+00:0000A780 38452A422FD7ECB1
+00:0000A788 E1CC876D62786CAE
+00:0000A790 1CA466449EEB03F1
+00:0000A798 ADF1FE868725D1B7
+00:0000A7A0 CE2CDEDE6C4A1709
+00:0000A7A8 9C5A3B710B26024A
+00:0000A7B0 187B7DADDA02960D
+00:0000A7B8 6AC35AC54F5A0E71
+00:0000A7C0 5BA436DBCA0DE5D6
+00:0000A7C8 A66B5A87440EBF4D
+00:0000A7D0 F15F134D1748C9BE
+00:0000A7D8 DE19355EC8FF1817
+00:0000A7E0 BFAF21F96D84A004
+00:0000A7E8 DE133CA842720E9A
+00:0000A7F0 7150AAA3073D33BD
+00:0000A7F8 8E4A780D15A6FF2C
+00:0000A800 B9A63F88B5FCB081
+00:0000A808 7495481CA9A95C79
+00:0000A810 97452C5CDA90D3DC
+00:0000A818 7F71884623371F1A
+00:0000A820 A0E7F22E29347674
+00:0000A828 C844D807F02AF19A
+00:0000A830 956507DCB272CB67
+00:0000A838 0E7A95C69225BB6D
+00:0000A840 FB84FB35A84EDB90
+00:0000A848 710D224A035072F9
+00:0000A850 F3F05129B43EDE50
+00:0000A858 7B206C0D0BB8BE00
+00:0000A860 11A23052F01043B6
+00:0000A868 3C59DFD60F1A3D7F
+00:0000A870 2FA9D182076A0EC6
+00:0000A878 5CE8A180EB269532
+00:0000A880 B88FC843F3BD8CE6
+00:0000A888 67106791BA226F2E
+00:0000A890 F30505A7DF524016
+00:0000A898 F2E15ED36A31DB2B
+00:0000A8A0 641DC7C98462EA3B
+00:0000A8A8 9161D3AFA546E581
+00:0000A8B0 12D37A3D649ED501
+00:0000A8B8 A413C8EFA5D8229D
+00:0000A8C0 F00789B655BA77FE
+00:0000A8C8 062E5CCD5C8DD167
+00:0000A8D0 17D5661BD9B81D2E
+00:0000A8D8 50C959EE28D7A4D1
+00:0000A8E0 2D7839F3402D4BEA
+00:0000A8E8 FE27FCCD8AB0177B
+00:0000A8F0 73279A7A15F4ED18
+00:0000A8F8 10B88EA2F52277DD
+00:0000A900 D071E0D6A7FE9545
+00:0000A908 2E87078C3FCFFB57
+00:0000A910 D2D60AA8E311D1D2
+00:0000A918 221226DE6945D5C5
+00:0000A920 609008B9B3169FE9
+00:0000A928 E8EC4197CA458F1F
+00:0000A930 6201D85E61019967
+00:0000A938 1DCCF29D0E0E4CFA
+00:0000A940 E6FAC6BA9E3AA108
+00:0000A948 12F4C047E29FA861
+00:0000A950 5763E3D59D7DB562
+00:0000A958 38F2FA18AF60E527
+00:0000A960 DA7258E7DA047BD3
+00:0000A968 52D367E1B9CD70BB
+00:0000A970 3CA34CB39B3FEC42
+00:0000A978 C5002D5868D6AAD5
+00:0000A980 6A4FFF792E96F16B
+00:0000A988 BF20886C09876A13
+00:0000A990 B3FC1F0B322CE534
+00:0000A998 CCDBF4EF9E0E8EB1
+00:0000A9A0 68B1BB25356BB34B
+00:0000A9A8 7C0F3054C109F387
+00:0000A9B0 71A570AEF11A7A9E
+00:0000A9B8 5F3625EDD85106FB
+00:0000A9C0 D6B024A5137975C4
+00:0000A9C8 3E8929C59688C3C3
+00:0000A9D0 9B759196A532CBCD
+00:0000A9D8 0C9FD37C4EF61325
+00:0000A9E0 72212D0B860CAAFE
+00:0000A9E8 B55CCC7EA5780ED2
+00:0000A9F0 543172E6D7590EEA
+00:0000A9F8 A42B167622F61450
+00:0000AA00 6C8AC642490ADA2C
+00:0000AA08 C891CC9C8E26A0CC
+00:0000AA10 7820DBF3DDCA619A
+00:0000AA18 9D1D567498A0E80F
+00:0000AA20 FDA606849F23E92E
+00:0000AA28 38DFC4D6EAE90E1B
+00:0000AA30 B9D72435FAD283F5
+00:0000AA38 CA8BF41DDFB3C715
+00:0000AA40 C96206820892A3B9
+00:0000AA48 71514A5D405F7693
+00:0000AA50 807EAF95D3144B29
+00:0000AA58 96F1A8E64FB67562
+00:0000AA60 519BB2284484E309
+00:0000AA68 186199383AE51B96
+00:0000AA70 E3CA601F78A331BA
+00:0000AA78 92FE9FB78B19743D
+00:0000AA80 26607104D54F2333
+00:0000AA88 08ACC9551D214755
+00:0000AA90 2367FF9C4953F829
+00:0000AA98 A42C5E516420BC21
+00:0000AAA0 7CA2D8C2610C11B5
+00:0000AAA8 72878287965BA3E5
+00:0000AAB0 BC1CD7579951833A
+00:0000AAB8 69B9EE7298EA4B92
+00:0000AAC0 6303E959D9C32ABE
+00:0000AAC8 BAB4A4689DBD502B
+00:0000AAD0 4756ABC7C12383A4
+00:0000AAD8 D2C50BC091CB2A45
+00:0000AAE0 A9D9423CCF18124F
+00:0000AAE8 2BF2C09A5DCADD22
+00:0000AAF0 15ACB3573C11D1CA
+00:0000AAF8 2DFAA381C85EE595
+00:0000AB00 651C6CFC8B57A4C1
+00:0000AB08 FC9980D8DF4F6FA1
+00:0000AB10 E3A9B99C4DD45AF0
+00:0000AB18 5BE72C110539C024
+00:0000AB20 644D287AE8C32A22
+00:0000AB28 E3CF984888337BC7
+00:0000AB30 A2EA170CA7400462
+00:0000AB38 CCF643DE7DF5072D
+00:0000AB40 44D9021C15549AF4
+00:0000AB48 E0A07F673CEA167C
+00:0000AB50 8EEDEC5B0E303281
+00:0000AB58 2D52A27321F57A36
+00:0000AB60 230350EAAA568B60
+00:0000AB68 6D5996700CF24EDA
+00:0000AB70 34C298299CB2FD31
+00:0000AB78 C07B99E1A4827C1C
+00:0000AB80 7289DC84F73255CD
+00:0000AB88 88691FEF4E4F2F77
+00:0000AB90 D1235B7BA96F5AD8
+00:0000AB98 33F85CAE1D00F01C
+00:0000ABA0 DA56094EE54B51BD
+00:0000ABA8 5837BDB314107C7B
+00:0000ABB0 2792F5535EAC1989
+00:0000ABB8 74EB384DE60907C1
+00:0000ABC0 45B7AAA7C67A3DD2
+00:0000ABC8 FF8D89E60A6F4356
+00:0000ABD0 41B0F13663F7AD6A
+00:0000ABD8 4B2A4571BEA4123E
+00:0000ABE0 59F9F0F597CF459C
+00:0000ABE8 5083C89D584F047A
+00:0000ABF0 2AC9FCDC748908C8
+00:0000ABF8 A7F1E54915169752
+00:0000AC00 A028E247EE9D9D27
+00:0000AC08 CD0182E1B2A6CCFA
+00:0000AC10 83E7B4897BA17E15
+00:0000AC18 5A2DA48ADC42E5F7
+00:0000AC20 39EC563DC703B6CF
+00:0000AC28 AF7C931BCF875CA9
+00:0000AC30 0B453D1A72F6F263
+00:0000AC38 9E91EA2F43ABEB83
+00:0000AC40 228BF491B32B0DCE
+00:0000AC48 8D9A94488AA3B939
+00:0000AC50 31AA30785FB9952E
+00:0000AC58 2BD6438CFC5B0EEB
+00:0000AC60 AE2C719971C121E2
+00:0000AC68 9B4F279182A57ECD
+00:0000AC70 9F606AA8D0012180
+00:0000AC78 7299E57F1AAE8F34
+00:0000AC80 DC0D26E6D8B74CF3
+00:0000AC88 F4C18799CC27889B
+00:0000AC90 FE04F32D76945053
+00:0000AC98 736D3BE96EABABD2
+00:0000ACA0 A29E675C1CA0FFA0
+00:0000ACA8 BE105F5DB565CBEF
+00:0000ACB0 BFE2888523AA675D
+00:0000ACB8 04CB0CAF57A1CE07
+00:0000ACC0 BFCC4270ED8BC8FB
+00:0000ACC8 57912A248109BFC6
+00:0000ACD0 5B91E36FAC847131
+00:0000ACD8 D47DA09C82E75A04
+00:0000ACE0 2F04A9E95D3E1633
+00:0000ACE8 3EFB4DEA2D6CC8C2
+00:0000ACF0 1AA4B53B29FDEE3A
+00:0000ACF8 163CB0BA582A86ED
+00:0000AD00 309D6AFE18EEE734
+00:0000AD08 EA802512EE518B72
+00:0000AD10 7EC1FE10971C376A
+00:0000AD18 F311D397BA3683CC
+00:0000AD20 54C3299D51C28AFA
+00:0000AD28 83894672C20557A6
+00:0000AD30 5BA360FB523D1E8B
+00:0000AD38 1BC0E69CBB17CE37
+00:0000AD40 300F82386400AC0A
+00:0000AD48 4156B6234FE5E66D
+00:0000AD50 059E97AD7AA462CB
+00:0000AD58 EEB82326804B97EA
+00:0000AD60 F7B25A5F317D649B
+00:0000AD68 8E92F198BC292E6B
+00:0000AD70 C74393E77954F462
+00:0000AD78 815B5335F8F5FAB6
+00:0000AD80 92BEA15567B47715
+00:0000AD88 3D54633F6D39B742
+00:0000AD90 D4975AA65405CDA2
+00:0000AD98 082622B870EAF1DC
+00:0000ADA0 09724D372D7A7E02
+00:0000ADA8 A628AAD8CFEF639F
+00:0000ADB0 1B24EDB9E80DE015
+00:0000ADB8 FE0B57C3312D6C70
+00:0000ADC0 2FD50342BDE5B5C5
+00:0000ADC8 3F5C17260C236D9A
+00:0000ADD0 F75194CB7C5FFC63
+00:0000ADD8 02C866DA162552EF
+00:0000ADE0 FFD2D1D6CFB9180E
+00:0000ADE8 70074A450D60E8D5
+00:0000ADF0 992DE79EB55887C0
+00:0000ADF8 A6FB659976EF7D91
+00:0000AE00 577C8889AA6AC57A
+00:0000AE08 0FC8D453E6EF9048
+00:0000AE10 30F874051B2B5F95
+00:0000AE18 AACFE4FF4DD477E8
+00:0000AE20 F20E39E51389BCB4
+00:0000AE28 394EF8A0A642C6BE
+00:0000AE30 CAA0837F81F99B1E
+00:0000AE38 31AEB0A9C1DB6C4B
+00:0000AE40 298E2150BC03912D
+00:0000AE48 08D1B9C7ED166A13
+00:0000AE50 28697D3206C91DD8
+00:0000AE58 803D255791823876
+00:0000AE60 A077C2EA8E922B3E
+00:0000AE68 BA829CB42C1B8A1F
+00:0000AE70 A4FDDA66294C05CC
+00:0000AE78 F8CC85DD10E366E5
+00:0000AE80 853AC823ABD2D294
+00:0000AE88 14A15A5022093FFA
+00:0000AE90 5C29369BE657C842
+00:0000AE98 D484776972EFBCC5
+00:0000AEA0 6CDEB86B6DD0711F
+00:0000AEA8 50CDCCE69FAAB56E
+00:0000AEB0 D4AFAE7170ADB175
+00:0000AEB8 F8D038CC8CB438DD
+00:0000AEC0 93F8A82CCDEB8A8C
+00:0000AEC8 83EE80D3D49333D6
+00:0000AED0 B9838B51870443E5
+00:0000AED8 80663192CB9CE016
+00:0000AEE0 902FD5EA55A8684A
+00:0000AEE8 0CD2733C3CE46988
+00:0000AEF0 BC0A0A781A42139E
+00:0000AEF8 697584284A02FC25
+00:0000AF00 C0F65A9A21D60D9E
+00:0000AF08 0932953BAA207C65
+00:0000AF10 C67B04DEAC088DCA
+00:0000AF18 BB6CC1B674749318
+00:0000AF20 7EEBE4ABF33843F9
+00:0000AF28 074262F64FEA1001
+00:0000AF30 A43373DC40207E00
+00:0000AF38 F13BB3C913BF4B80
+00:0000AF40 555EE1FC0F680ECB
+00:0000AF48 24D5DC2A360AB35A
+00:0000AF50 8A17B22DA7A40E51
+00:0000AF58 8EC15457F4C7C56F
+00:0000AF60 C765664AF935A336
+00:0000AF68 4AA736C555AB89F2
+00:0000AF70 D7094251B02FAF1C
+00:0000AF78 3BC64F5BD7C631BD
+00:0000AF80 C4D1276374F7BBFF
+00:0000AF88 65148112A6743B1E
+00:0000AF90 ADC61D90BA861A15
+00:0000AF98 371CB54F6BC5719D
+00:0000AFA0 2099C7A6DD43E506
+00:0000AFA8 B41CEFDF615531AA
+00:0000AFB0 69FF931A7568A8FB
+00:0000AFB8 4669DF536AB96099
+00:0000AFC0 6C1913320BD18604
+00:0000AFC8 5EBEB73516C9361D
+00:0000AFD0 26A18EA5C3542DD4
+00:0000AFD8 425A817ED1036E14
+00:0000AFE0 3BA4B7FA4F05D676
+00:0000AFE8 2558A13014F3B2A4
+00:0000AFF0 FD420BB89BC76212
+00:0000AFF8 4CCF08AF1B70F808
+00:0000B000 A2987AFD469B8146
+00:0000B008 3CACA67C3EC1A270
+00:0000B010 D48F0D373B5396DD
+00:0000B018 7DF78A12E47C8CAF
+00:0000B020 AABD723755A4CBBE
+00:0000B028 8F181123876637E9
+00:0000B030 3F32C9CBF98F78B7
+00:0000B038 81A59EE8F9131DF7
+00:0000B040 67F4B84225713E50
+00:0000B048 A05E15A907512CAE
+00:0000B050 2691D1ADC88B1BFA
+00:0000B058 330FD1C23B25FBC4
+00:0000B060 7F740248C11FAF3D
+00:0000B068 B6092D94CD95ADF7
+00:0000B070 846D7340B77645A0
+00:0000B078 78C161F0B67BDE47
+00:0000B080 131BCB51B2953EFA
+00:0000B088 03B14CEC42C334BD
+00:0000B090 6D479CA3C235D7CD
+00:0000B098 02E5440E66D3C1E6
+00:0000B0A0 9040043E7EF7879F
+00:0000B0A8 527013D8EC2E5E8E
+00:0000B0B0 61583C89D11BAB08
+00:0000B0B8 99CCCC8F3401E72B
+00:0000B0C0 274246CBB32D37D1
+00:0000B0C8 151BF01201C3BF7B
+00:0000B0D0 E75B0CCC1E549AC7
+00:0000B0D8 C0A3003D1E97F80C
+00:0000B0E0 B2A72B1B5C4801BC
+00:0000B0E8 03AC56D659FA13C1
+00:0000B0F0 EAADC4CEBC60C17C
+00:0000B0F8 AED278FA3DFFEF7E
+00:0000B100 0DF6539EF7474A34
+00:0000B108 0C42E96C1D94BB97
+00:0000B110 0D3954705E226959
+00:0000B118 A9AE9157E35F1B65
+00:0000B120 B3C585F26D294BF0
+00:0000B128 D994B0A43F202847
+00:0000B130 3FC444245841B462
+00:0000B138 4133219E8268B550
+00:0000B140 E0D90A9B1B20CA40
+00:0000B148 736869934A512924
+00:0000B150 EFF32EE3BE4C671E
+00:0000B158 0289F32EFD42A820
+00:0000B160 41B3929957EFEBBF
+00:0000B168 2FE2CF146EFCDC15
+00:0000B170 523B9D9DA6B33879
+00:0000B178 287383674A6B3CD4
+00:0000B180 5DF2BCF256C37121
+00:0000B188 8160A76EF5D7A30A
+00:0000B190 98CCDF8DE650D671
+00:0000B198 0EDF4A10348AD6EA
+00:0000B1A0 6125B6E9DF5D7CBB
+00:0000B1A8 8501AE2574F49BE7
+00:0000B1B0 48100372523765EF
+00:0000B1B8 608FC54EE818A792
+00:0000B1C0 8A461409747EC2FA
+00:0000B1C8 505ADB246D4604B3
+00:0000B1D0 EF4C23A4F323ABD2
+00:0000B1D8 0347E75B6DEA358D
+00:0000B1E0 A68D6AEF69DFEAE5
+00:0000B1E8 5B22484CD2904A72
+00:0000B1F0 C93746F13BEED1CA
+00:0000B1F8 DFEFEF33D0E4D10E
+00:0000B200 55DBD2C8A22124E8
+00:0000B208 C0692A22DDA89053
+00:0000B210 EE59C1DBB35565FF
+00:0000B218 741CC5CC7BEDB397
+00:0000B220 AF0690129ACFC0F8
+00:0000B228 2156BB4EE629034F
+00:0000B230 28AA09236C05187F
+00:0000B238 E8B3D76ACA81A1E1
+00:0000B240 0086D6ECF300B174
+00:0000B248 19E4934B21A24437
+00:0000B250 8FA4150BD1CEBD96
+00:0000B258 3749B5F1B39CF266
+00:0000B260 024A9EB16149BD81
+00:0000B268 579A9AA339F09977
+00:0000B270 9ED385FE29B98D92
+00:0000B278 B28CBACDDA10C569
+00:0000B280 2B82D17E866A5DFC
+00:0000B288 002C1A8C5DE3372A
+00:0000B290 36739A05370F0DA7
+00:0000B298 F5A850943704A83C
+00:0000B2A0 DD317C774F671733
+00:0000B2A8 FBD22050E3ABD2E2
+00:0000B2B0 0122E1492A6C6AB9
+00:0000B2B8 93907A5704281EC7
+00:0000B2C0 90C2359288E82BBC
+00:0000B2C8 BEE62E55B0F1484C
+00:0000B2D0 F7F4EB12FEBB1D84
+00:0000B2D8 D08CA6240BF6FFA0
+00:0000B2E0 BBF6D0FB06B96633
+00:0000B2E8 65914FCC06708426
+00:0000B2F0 6010A8C77CD42CCB
+00:0000B2F8 C9F01A470D491937
+00:0000B300 BD9B3589525A41E5
+00:0000B308 F29A872D8B70BFD8
+00:0000B310 7242DCF5C19F40BC
+00:0000B318 EA08C27D84F5F056
+00:0000B320 B42C15D3AE558035
+00:0000B328 67754472FAAA6B5A
+00:0000B330 C750C6F94884E558
+00:0000B338 74D514313952C61A
+00:0000B340 F6AA076C53323817
+00:0000B348 1653BACD07F0BD01
+00:0000B350 4073979F0D92279B
+00:0000B358 61B8EA1646F78657
+00:0000B360 7262391B09026035
+00:0000B368 3018FEF47A038A48
+00:0000B370 2AB762C9890C183C
+00:0000B378 DBF656A7C8FFA074
+00:0000B380 B55AF11BF6E0B0A5
+00:0000B388 A6B29F124CEE4875
+00:0000B390 7D1E99149ADD41DE
+00:0000B398 4E4481D57630F3D6
+00:0000B3A0 F469B3C196394C62
+00:0000B3A8 69BDCDF0F31EFE76
+00:0000B3B0 53BD93F59BBAA11F
+00:0000B3B8 3E736C4196627E19
+00:0000B3C0 57C96B3222313CEA
+00:0000B3C8 6C249F8BBD771482
+00:0000B3D0 ED5751AFD02C7929
+00:0000B3D8 2CB817C0D0EC942A
+00:0000B3E0 05FB087549132A48
+00:0000B3E8 327188E9589F6B62
+00:0000B3F0 7CC8D47449EB08D3
+00:0000B3F8 205F82706CEA8AA6
+00:0000B400 54D8051BDCF1DD0E
+00:0000B408 D5DE6D23B12AA439
+00:0000B410 37A0BACCA02E9F89
+00:0000B418 187836AF0898FD63
+00:0000B420 7F5C56B7C46335F3
+00:0000B428 DF3393E00BE39CBD
+00:0000B430 C4298248F9110F97
+00:0000B438 72F7DD95EA8EF02A
+00:0000B440 E21E7E32DADCACCE
+00:0000B448 52D746986D3E244A
+00:0000B450 AC7C87ADBF3DC9DA
+00:0000B458 9EB288F7AF41DB61
+00:0000B460 AD93CC0C93BF77DC
+00:0000B468 12C3E3BD79A88092
+00:0000B470 4CEBCF10250F40A4
+00:0000B478 1FCD786E5A070783
+00:0000B480 11D4CE219A94C563
+00:0000B488 40A1B10F49E61656
+00:0000B490 F0CEEEE4038FA657
+00:0000B498 E4194C9E7B42D7E8
+00:0000B4A0 3AB377D0DB792960
+00:0000B4A8 C0E75EB6C1E61F66
+00:0000B4B0 B675274B139E96B0
+00:0000B4B8 96643B1105CD4429
+00:0000B4C0 935BA1AD639D6890
+00:0000B4C8 47ED1133F4545430
+00:0000B4D0 0BE8993FC2DC706B
+00:0000B4D8 B1942ADCA512D7CC
+00:0000B4E0 7110E7D2BD0B6E5C
+00:0000B4E8 779C6F8D9FFD8F12
+00:0000B4F0 FC25C9621B44510A
+00:0000B4F8 89136C502EAB68C6
+00:0000B500 04DEC57802D1DE10
+00:0000B508 7282AAD99B37D7C5
+00:0000B510 6223C84C95E6C953
+00:0000B518 353C861EDBA2CB8B
+00:0000B520 629537C8C4E2464A
+00:0000B528 8683948AA6D0DF41
+00:0000B530 A719D2488778D3F8
+00:0000B538 4335BEAC42E9EEDE
+00:0000B540 190C2F076FFF5FD3
+00:0000B548 FD04EC3622CA959B
+00:0000B550 5AF1F22EAFBBBF81
+00:0000B558 D2699F51BFD93F92
+00:0000B560 2557203B7A055D5B
+00:0000B568 247AA3F673EADD19
+00:0000B570 25C919493576C95A
+00:0000B578 64A0115351E58C9E
+00:0000B580 6AA8E6F9ED7CD623
+00:0000B588 39C33E20522E827C
+00:0000B590 8FCA80F4D4F7B9A8
+00:0000B598 E43685B85DAA91CC
+00:0000B5A0 20E1DDD46A812D6F
+00:0000B5A8 A38EDC1C7BBD5785
+00:0000B5B0 39967DAA3E6200C7
+00:0000B5B8 7832A1B18D9FAA1D
+00:0000B5C0 83AE5DE164183983
+00:0000B5C8 49E7390904C32A26
+00:0000B5D0 7F2A7E3EA97E841B
+00:0000B5D8 3B113E7808A68FF6
+00:0000B5E0 FAEABA21EA826BB7
+00:0000B5E8 0E13D56EAA4EBB09
+00:0000B5F0 7847427ADAD003F3
+00:0000B5F8 3A1F9932CE136326
+00:0000B600 F99E540F84C2C59E
+00:0000B608 BAC73B508C11E7AA
+00:0000B610 851AB8B9BC1F83E0
+00:0000B618 35F1298C609B60AD
+00:0000B620 D9993E811FB664EA
+00:0000B628 33E5E698B8A9700B
+00:0000B630 5A28E24D4454EB8B
+00:0000B638 563EE7AB3E7E0B97
+00:0000B640 6AEBD85F8CEECDA7
+00:0000B648 26BC772D686502B0
+00:0000B650 89F61238AE43EB7B
+00:0000B658 D00A1C354287D185
+00:0000B660 4848DDA619090CCA
+00:0000B668 C3DF51D638D1D893
+00:0000B670 C55029765A3DA9DE
+00:0000B678 5C69C0D25E311FA4
+00:0000B680 768359512C17DECF
+00:0000B688 09C33815FF009498
+00:0000B690 8C295D50476FBA97
+00:0000B698 AF6A931F4607B3B3
+00:0000B6A0 F29D56339EAA9233
+00:0000B6A8 1959BEE11F439568
+00:0000B6B0 04A1F2B6C04FBF88
+00:0000B6B8 C8B613A3EAB27CE3
+00:0000B6C0 1F69F95FE8C65344
+00:0000B6C8 4AC7367209E2A487
+00:0000B6D0 C8EAE90F638D1C78
+00:0000B6D8 997FB55A33570407
+00:0000B6E0 81FA0B952093225E
+00:0000B6E8 1620755DBF4C9BC9
+00:0000B6F0 C86061A2FDF1BA96
+00:0000B6F8 8AA48370B7F26C16
+00:0000B700 26369080990F0368
+00:0000B708 EF34FAEE1FC4CF83
+00:0000B710 2CDC3A9DF2641414
+00:0000B718 BAAAA9FFE2F0B603
+00:0000B720 030A53F56A1F3796
+00:0000B728 9BAC2FC5921851A7
+00:0000B730 80487AA76FC507CB
+00:0000B738 BF6DB300AD4CB8CE
+00:0000B740 CA3B36E54BED63E3
+00:0000B748 A710071EEC3B3C03
+00:0000B750 EC15F6A62A0C4C01
+00:0000B758 438B49D86731BF98
+00:0000B760 4A3B42919EF53664
+00:0000B768 B902129B8A733DC7
+00:0000B770 EF726073959E120D
+00:0000B778 44D039D251F8E8E8
+00:0000B780 CE59EE1CC63455D3
+00:0000B788 E79A478660865E1C
+00:0000B790 51E1AFC02DA05819
+00:0000B798 E216D343DF8C6DD7
+00:0000B7A0 FF4ED26DEF5CA505
+00:0000B7A8 C1A87B52C814B6FC
+00:0000B7B0 1000CECDC312E35B
+00:0000B7B8 31A239F46449DCDE
+00:0000B7C0 1919E5AE20CDBCBD
+00:0000B7C8 1CA7A3A1643D3ADB
+00:0000B7D0 96744DC56FD835CB
+00:0000B7D8 9D3E3B6A235177FA
+00:0000B7E0 519A4B00A7131EB5
+00:0000B7E8 EF6D52D3EB5C3DEF
+00:0000B7F0 7FAD60424E0596C3
+00:0000B7F8 55967701BAAD1817
+00:0000B800 649F380499E935AD
+00:0000B808 0FB6F43F79D1760A
+00:0000B810 63DD79B3133C9608
+00:0000B818 7F74B93018E1DAEB
+00:0000B820 ED5E529D8F6509EA
+00:0000B828 FE7E69DE1E1203DE
+00:0000B830 417D4F9CCA4391D2
+00:0000B838 5869D9280D93122C
+00:0000B840 969A3FDC8242C243
+00:0000B848 1D1DDF71A39BB323
+00:0000B850 0209B34E0C040C21
+00:0000B858 AA36DB7477A72841
+00:0000B860 D560C5BA09CE048E
+00:0000B868 8ECF3A68ABF6B712
+00:0000B870 5F9AAAE7D3369B14
+00:0000B878 E4A650D115C3628A
+00:0000B880 B7AC04C2C2603C5B
+00:0000B888 345A90B614F8FBAF
+00:0000B890 6CC65BEB4EE63049
+00:0000B898 96D1CE236769EB06
+00:0000B8A0 334EB52BCD456F97
+00:0000B8A8 090307D4E24C87B7
+00:0000B8B0 668E58E68B90D9F8
+00:0000B8B8 ED401970B4BCE0DC
+00:0000B8C0 5C2B9E91448D428F
+00:0000B8C8 D5024DF9307430FB
+00:0000B8D0 4598E0A626C10373
+00:0000B8D8 409849F03FBFDC78
+00:0000B8E0 98D80792A6B3E1A0
+00:0000B8E8 BCC996F6B5D45D4C
+00:0000B8F0 E6C114302E32573C
+00:0000B8F8 9EACB565C3AC8E75
+00:0000B900 AB9947F9D9FAA8A9
+00:0000B908 775C58F9AAF90A09
+00:0000B910 260482C762A5741F
+00:0000B918 867AB2B702BCB684
+00:0000B920 06C730831CAC7296
+00:0000B928 6EFFC743CCEA2C22
+00:0000B930 9688FCD0FD8E6FDF
+00:0000B938 A6872DCD6ABB9031
+00:0000B940 03AAC60E169B570C
+00:0000B948 441EA434B0B8E513
+00:0000B950 D0F110661D9B80D4
+00:0000B958 E5CDCD07C58F3398
+00:0000B960 5BEB785AF15A01F9
+00:0000B968 B56525175FBD081A
+00:0000B970 126520B64FFC837E
+00:0000B978 D35CF724954A1771
+00:0000B980 417F790B809FC1C1
+00:0000B988 E8B65406E4504CB2
+00:0000B990 AA7E9FAAC355ECB4
+00:0000B998 65D06D075E348BD7
+00:0000B9A0 E5872A0E2BDD182C
+00:0000B9A8 3B3D8E7EE51C6826
+00:0000B9B0 DC2E2634B1ADDBB0
+00:0000B9B8 168556674B164E59
+00:0000B9C0 CF666C0A09282D94
+00:0000B9C8 379CD99F1F5A2713
+00:0000B9D0 61B77023D1BC63BA
+00:0000B9D8 10C414F8C486EAFF
+00:0000B9E0 ADCCE4D4A33B7ADF
+00:0000B9E8 6E8C6C91DD64E7C0
+00:0000B9F0 70D802DB06779210
+00:0000B9F8 362173ABC435B25F
+00:0000BA00 DD8FED817F640423
+00:0000BA08 109A1A6E5D3D375E
+00:0000BA10 5399C488F8FAC956
+00:0000BA18 152EA33B34B618A5
+00:0000BA20 F44CAC05316B4FC1
+00:0000BA28 FFDE377162E12B38
+00:0000BA30 5DC2C415335873A4
+00:0000BA38 950FCC24297FA131
+00:0000BA40 56E954A12FA551F1
+00:0000BA48 EB97ACCE17EFFFF7
+00:0000BA50 DE6F941F866647B2
+00:0000BA58 6BAAA85DAE2F941E
+00:0000BA60 C2281A202914BDE6
+00:0000BA68 3425E68EBA024043
+00:0000BA70 6324C3CA1FB24D8A
+00:0000BA78 F04CC09D1FF44BBD
+00:0000BA80 864D36F97E7D27FF
+00:0000BA88 6C85AB94F95CA5EE
+00:0000BA90 D7413C4F39BCA9A2
+00:0000BA98 816F40323CC5EFD1
+00:0000BAA0 C58D8AA3BF2CA7FD
+00:0000BAA8 6E6AB28E78031E62
+00:0000BAB0 B252BA68E804E26B
+00:0000BAB8 318E5502FE587AF5
+00:0000BAC0 DC54D867395BA48D
+00:0000BAC8 BFF8F34BE3DDA257
+00:0000BAD0 E5CE807FEB1EF47A
+00:0000BAD8 2CE4794E7E11D106
+00:0000BAE0 DAE965B8401D2AA5
+00:0000BAE8 82854B7942003A92
+00:0000BAF0 4B9CD4DC77131888
+00:0000BAF8 F0DAC793B00142AF
+00:0000BB00 A2A1AADEFEB111DA
+00:0000BB08 7E373BE4CA9BA8FD
+00:0000BB10 42397D7DA3AFA389
+00:0000BB18 DDA5880DF809AB65
+00:0000BB20 097ABB5B4CD46C56
+00:0000BB28 6AB5EB05C8914FE4
+00:0000BB30 B59551CABD063ECE
+00:0000BB38 0C177D74BADC73C3
+00:0000BB40 123B16315E38E533
+00:0000BB48 BC2C57B5EA14FDE4
+00:0000BB50 0890EF22805F4421
+00:0000BB58 1469C7E6A03645CD
+00:0000BB60 1E15EAFB0EB20721
+00:0000BB68 42AB121174A01E4F
+00:0000BB70 D0C5EF638675DD86
+00:0000BB78 2D99DA84E73E625F
+00:0000BB80 2A0949B3FA395268
+00:0000BB88 69F68FC6FC8382DC
+00:0000BB90 E198199039845437
+00:0000BB98 5DD2F5680B6C7BF9
+00:0000BBA0 8D7EF279B7637F4E
+00:0000BBA8 6C7D8B025A68C6DC
+00:0000BBB0 1758257FFF77DF21
+00:0000BBB8 ACFD37889B2356C4
+00:0000BBC0 B6D29C5F29945C20
+00:0000BBC8 C8A6D6749BBD2AEC
+00:0000BBD0 48D6A7D7AD0015BB
+00:0000BBD8 563F8B2019501332
+00:0000BBE0 291FFD3C24D28A7E
+00:0000BBE8 9DB62DA061D94395
+00:0000BBF0 6A55B109D9823A0D
+00:0000BBF8 A84F1290CAD13343
+00:0000BC00 0C7241C15AC06CAD
+00:0000BC08 6A353F348E1F6F06
+00:0000BC10 3294E45B6E670167
+00:0000BC18 02FA731444D6E931
+00:0000BC20 C1F959592762C8C8
+00:0000BC28 A66954FAA63A1133
+00:0000BC30 C13691C4BF6BF8DD
+00:0000BC38 B2909A49D778B2BB
+00:0000BC40 2222804B10466421
+00:0000BC48 211C154918A23CDE
+00:0000BC50 8903EAF236369CE4
+00:0000BC58 06684E83F834807B
+00:0000BC60 364BE5E0D9DEC7F3
+00:0000BC68 6E83B5D847448AA8
+00:0000BC70 25C4988CAA3D9389
+00:0000BC78 87BEC67A2E276D6D
+00:0000BC80 A4338146F6E2863D
+00:0000BC88 CA51EAF3E45A7885
+00:0000BC90 ABEBB3484E571644
+00:0000BC98 5BE844A988D34AE0
+00:0000BCA0 EF5B6E7E9D4803ED
+00:0000BCA8 847CCC616D25D68B
+00:0000BCB0 17976322892C5B55
+00:0000BCB8 13DBDC4096CFAFFF
+00:0000BCC0 323343540E715B75
+00:0000BCC8 46AD6722F0E23687
+00:0000BCD0 AC770E9948BDA27C
+00:0000BCD8 9F7036575DC92259
+00:0000BCE0 7AB8C2C3C1B0E1E2
+00:0000BCE8 164D14F527451FFD
+00:0000BCF0 C923920303D803D0
+00:0000BCF8 B0D6BBD1C223B124
+00:0000BD00 0FA592FABA7AC28E
+00:0000BD08 5B3B853B68769757
+00:0000BD10 9126FFC057E85529
+00:0000BD18 D75590C483C1F5C4
+00:0000BD20 42CFB3D83F1B1C70
+00:0000BD28 51D622EE3584E491
+00:0000BD30 78735CADB34B6528
+00:0000BD38 2DBA52B506222C74
+00:0000BD40 2C4E9FBD3A732DDD
+00:0000BD48 9C3065DDFCF6DE8E
+00:0000BD50 2FC184776CB0B59C
+00:0000BD58 18937A3649362A2E
+00:0000BD60 13CC35CA5CDEB3A2
+00:0000BD68 76F5B71296C36BE6
+00:0000BD70 0F8D0D4E9FF3D633
+00:0000BD78 6FA430667FCDFF88
+00:0000BD80 9BB3795CFC39F828
+00:0000BD88 329AA0FEB4C1F7B1
+00:0000BD90 53A98DBA71745B81
+00:0000BD98 E8E5F692A881C106
+00:0000BDA0 6FABE6F32FC8AD43
+00:0000BDA8 69FB0726D88282A3
+00:0000BDB0 9D0B3DD9BA7D8CD4
+00:0000BDB8 569D293A2E898FA1
+00:0000BDC0 4B6EE8E5F1E3C679
+00:0000BDC8 8759C23F72C05E50
+00:0000BDD0 5E03F9743CE1CA7B
+00:0000BDD8 3246A09907E118E8
+00:0000BDE0 E5E690B55D4D157A
+00:0000BDE8 AAB8636DB9C5155D
+00:0000BDF0 84CE37357DCE7F47
+00:0000BDF8 1B8FBB44E527594B
+00:0000BE00 A733BA9D1D0BF997
+00:0000BE08 01CD7F0C6A9A7C82
+00:0000BE10 7B005FABDDEF8307
+00:0000BE18 9535F94C381F4C71
+00:0000BE20 745359071BCFCB57
+00:0000BE28 38BD08E1E0D513E7
+00:0000BE30 32CBC2CF4F18970D
+00:0000BE38 F18372762923B5A2
+00:0000BE40 2CAA5323C89679C0
+00:0000BE48 68F4CD116AD8A9E9
+00:0000BE50 590594DB500DEE0C
+00:0000BE58 ED42B43E13A7BEC9
+00:0000BE60 7173BE04E09B6927
+00:0000BE68 1BB2EA773A2198E2
+00:0000BE70 A99D2D34E23089E7
+00:0000BE78 C35385628321B987
+00:0000BE80 1AC4241056F6DE74
+00:0000BE88 848D2D68D6A8C867
+00:0000BE90 FBEE2CF73B15342C
+00:0000BE98 AF2243355DC0EF1F
+00:0000BEA0 6E19BC846D09BF13
+00:0000BEA8 75BAD9A86508AF16
+00:0000BEB0 8FA733D1EA3B759D
+00:0000BEB8 F2A8C03C8F29A53D
+00:0000BEC0 02512FB2BCB5747E
+00:0000BEC8 0456C073BB9D1259
+00:0000BED0 0140FC15F5DD923A
+00:0000BED8 575FACB6E503E8C7
+00:0000BEE0 C5F0FBDD684157ED
+00:0000BEE8 FCB0E853234B6E0E
+00:0000BEF0 82F82017A52CA990
+00:0000BEF8 30BAB3C8F551EF84
+00:0000BF00 BE80005A11BEB840
+00:0000BF08 B776E00A778D348E
+00:0000BF10 A42EB0EF7956D768
+00:0000BF18 F55B8A45666E492E
+00:0000BF20 0B0C4439C4C273FF
+00:0000BF28 0F8DD74E9CC31548
+00:0000BF30 B431FAB4317C0699
+00:0000BF38 FD72A792900E69B4
+00:0000BF40 336376DC1A0CD8DF
+00:0000BF48 9BCB65590F44FC78
+00:0000BF50 3D1463B02FBB5165
+00:0000BF58 4DF770CD350FE1E3
+00:0000BF60 AF37B1BA1843F86E
+00:0000BF68 FF1EA2B946FF0918
+00:0000BF70 B90376F8B3C06ACD
+00:0000BF78 5BEACB007F764D64
+00:0000BF80 A3F096BCE4B7CC63
+00:0000BF88 CDECAF96650D3364
+00:0000BF90 5B8FC2BBD9F909B2
+00:0000BF98 97DD5B99A458F01C
+00:0000BFA0 287A791E64715285
+00:0000BFA8 EC05A50A9B6DE61C
+00:0000BFB0 33D9F7ABA000CB0F
+00:0000BFB8 A32B5D6A27307F4A
+00:0000BFC0 3AF007647704549F
+00:0000BFC8 3428FED4B23E9AC6
+00:0000BFD0 D1548A7EC31779F0
+00:0000BFD8 22EDC8BBE1023678
+00:0000BFE0 DC2C4FF35D0D1DF5
+00:0000BFE8 662CE289D6FFED44
+00:0000BFF0 A0C429F6B0E51154
+00:0000BFF8 21403050CB3B1C2A
+00:0000C000 2996A7F78D8B08B6
+00:0000C008 8E5FA5B52B77C8E9
+00:0000C010 BD5A5B610C7CA56F
+00:0000C018 49A5C9218E4075B7
+00:0000C020 F0EAC39B24938560
+00:0000C028 6D225CFF6053D9A6
+00:0000C030 E86E882F743BA832
+00:0000C038 F8F1721D0DBAAB14
+00:0000C040 2B4256287186AB18
+00:0000C048 6F55FD39B878E9C9
+00:0000C050 6186D8AE0D72AAEC
+00:0000C058 51A45EE68776704F
+00:0000C060 CEA781E9725AE213
+00:0000C068 C5E6E32006176B27
+00:0000C070 AE031478166EC8DA
+00:0000C078 9DC7AAEF50E8DB1F
+00:0000C080 8FE20C453CDFD0ED
+00:0000C088 19D372CCD7D51F1F
+00:0000C090 B13F8390AC58DBF7
+00:0000C098 BFFE5C95A4313237
+00:0000C0A0 CD336C192CD8462E
+00:0000C0A8 C0DC25C48988E27B
+00:0000C0B0 091FA30A03E8B924
+00:0000C0B8 11707252E3933F58
+00:0000C0C0 C4ABB5B22D761BE8
+00:0000C0C8 1F7B18F27742BDB8
+00:0000C0D0 9064CA9C9F2EF611
+00:0000C0D8 51FB4E0AEC1EED85
+00:0000C0E0 BF43F0B37ED76C4B
+00:0000C0E8 478C219E9582ECBE
+00:0000C0F0 991A383B73C30CDA
+00:0000C0F8 2979A11B9649ED14
+00:0000C100 D74DCF752861F8DD
+00:0000C108 7A35B21BD724AB50
+00:0000C110 FDFD908BCA0A156E
+00:0000C118 87856CAE9F277B79
+00:0000C120 623BD43CE79B7947
+00:0000C128 E2F29BEAB487CA89
+00:0000C130 5E2239B85EF128DF
+00:0000C138 4A943565FB134274
+00:0000C140 8EED657E9FC52650
+00:0000C148 CCEC14404B19441B
+00:0000C150 2DCECC5FD9F7E8CF
+00:0000C158 34E352B791446356
+00:0000C160 5299251D2403D98E
+00:0000C168 02D31ED4BC96E42A
+00:0000C170 38AFF4290D4F3791
+00:0000C178 D912F697EDA312C0
+00:0000C180 A85841F975AB11B7
+00:0000C188 4E8B04C4AE651B98
+00:0000C190 7367D540176B6CF4
+00:0000C198 2AFB4283A6A5740A
+00:0000C1A0 0E028D295F293F2A
+00:0000C1A8 8804E4CBD8EC3300
+00:0000C1B0 89724D85D888B294
+00:0000C1B8 0C8D8A1D056A7A04
+00:0000C1C0 9665C4E9192DC697
+00:0000C1C8 251E308EE289B656
+00:0000C1D0 08F9BFB4D067FE80
+00:0000C1D8 D03137A5C174C98E
+00:0000C1E0 D62ADEB559ABECC0
+00:0000C1E8 403B95305E9DEEB1
+00:0000C1F0 62364FB6B2225832
+00:0000C1F8 78A41EC1393D9CC1
+00:0000C200 679DFD1AA8214368
+00:0000C208 AE20DA56D2B77A8D
+00:0000C210 C631C5AB89739358
+00:0000C218 D894E8D59CCA7BE9
+00:0000C220 A5E7FEDAD072E350
+00:0000C228 D7951DED50FE1786
+00:0000C230 DB4556CB8440A27B
+00:0000C238 B5B6043E61BC75AE
+00:0000C240 4A3ED9C73F8883CF
+00:0000C248 A4EFF5543E036110
+00:0000C250 684CD4E080049F4A
+00:0000C258 3712D61C194CA493
+00:0000C260 016F4E7E36680D41
+00:0000C268 76A88DA180F891B6
+00:0000C270 21C01419AE3B794D
+00:0000C278 3AAFDF493519752E
+00:0000C280 3E9F3A48E200FDED
+00:0000C288 FE4C1A515D476526
+00:0000C290 3F196DAB5CB99E15
+00:0000C298 82EA75068A225FDB
+00:0000C2A0 FDFA00694A6696D6
+00:0000C2A8 7639315C6FA8D805
+00:0000C2B0 36F7CC4883491537
+00:0000C2B8 4DFD626AC01C8B94
+00:0000C2C0 0B624515AAF0A5DF
+00:0000C2C8 2C3D27069617AD5A
+00:0000C2D0 41E0ECF6C477FB63
+00:0000C2D8 FC2C3D48EE697E93
+00:0000C2E0 F1C6C7C2774C53B5
+00:0000C2E8 BA9CAB1EBF6574CB
+00:0000C2F0 1A2AEF3F7ADAFB03
+00:0000C2F8 9A678D2C2D244EA3
+00:0000C300 DFEDD497215E843C
+00:0000C308 FC7748AC6A451532
+00:0000C310 329C0D92293D8BC4
+00:0000C318 947A381F3577B1C0
+00:0000C320 AD5DDDE46DA1CDA9
+00:0000C328 34DF0E8A64E9BF98
+00:0000C330 4C867CDCA9CE19DE
+00:0000C338 33CCBBDB1EF103D7
+00:0000C340 D9FD004481B0B864
+00:0000C348 D218853934982E5D
+00:0000C350 005E0BB7F2D01054
+00:0000C358 102BFB5DEE1B441C
+00:0000C360 9F3660F137EFAF8B
+00:0000C368 017CFD69B96C58D2
+00:0000C370 9567BE00572DEEDB
+00:0000C378 BF89952EC224B532
+00:0000C380 68BB0CA89029A749
+00:0000C388 D96123779B9AB7FE
+00:0000C390 BD15FD679EA6CBFD
+00:0000C398 D09821F6E05C4111
+00:0000C3A0 90586A80BFD51456
+00:0000C3A8 4344A2847AD3A4F1
+00:0000C3B0 EC068560E0B99D65
+00:0000C3B8 0F681285016E5365
+00:0000C3C0 47680F5A84F66809
+00:0000C3C8 C097B352C8C1A788
+00:0000C3D0 792631CF9DE4BAF5
+00:0000C3D8 718AE014E817B90F
+00:0000C3E0 FA384AA8A4F1D1B6
+00:0000C3E8 0D592962C517A79C
+00:0000C3F0 C662C48F9F54E7E7
+00:0000C3F8 4336A8FA166E06F1
+00:0000C400 339BD4D20F57C455
+00:0000C408 C5506641ABE14BF2
+00:0000C410 E800DC6A993AE7E5
+00:0000C418 EEE3BBFF0A3F2884
+00:0000C420 042B36C97E9832EE
+00:0000C428 27466ACBE968D539
+00:0000C430 FEC5DE80CE8A62C6
+00:0000C438 843EF3A0A2230196
+00:0000C440 0CBB0FAD54B26160
+00:0000C448 9C9A182BAF9820C5
+00:0000C450 735ADB67413A9EDD
+00:0000C458 C5CC8CD0ED2F4660
+00:0000C460 4B906FBBDD09E71E
+00:0000C468 4986F36EF8008DE7
+00:0000C470 4FC35D65A55B9CAC
+00:0000C478 27E14859962337B2
+00:0000C480 977850E20505B875
+00:0000C488 9D18FD9914987BFA
+00:0000C490 D40E36B2DFEF134D
+00:0000C498 93E365B0FA2545C3
+00:0000C4A0 BA9F19D80597A4D6
+00:0000C4A8 1622695CD82E991B
+00:0000C4B0 D0A738A080334354
+00:0000C4B8 9456E186D8263F3B
+00:0000C4C0 67A9965584CBE968
+00:0000C4C8 7B5CA0CC0856EEDD
+00:0000C4D0 32AF8D72794294A8
+00:0000C4D8 7C4512FE778A5F14
+00:0000C4E0 15F6457B3A124EFF
+00:0000C4E8 A1CAE2F6B278FDB7
+00:0000C4F0 3A3003A203F9731A
+00:0000C4F8 75C8046CC5EEFF83
+00:0000C500 48A0E12863ECCB6F
+00:0000C508 A1E0C4D4B28261E3
+00:0000C510 2932E42762E33286
+00:0000C518 FBA6A1AA426AF5F1
+00:0000C520 8563DE4F98A119FF
+00:0000C528 DA446012B22332F2
+00:0000C530 D2562454174C311B
+00:0000C538 E3C3CE2ADEC52C20
+00:0000C540 45BB033E37EA86BB
+00:0000C548 C08A65E5BDBB3797
+00:0000C550 9CB485C5B1FFA832
+00:0000C558 AB0A701CE25277A7
+00:0000C560 4589DB783343F71D
+00:0000C568 A48F69726ABF50D1
+00:0000C570 8D6869D2A96AAE32
+00:0000C578 F174595D71A99861
+00:0000C580 D9C593F6051F87E9
+00:0000C588 81CDBED6E0523317
+00:0000C590 86F53C5350917C57
+00:0000C598 A0D087FE1AAC0A36
+00:0000C5A0 AB5BBC3D53004AF1
+00:0000C5A8 F7CCAC342F76B990
+00:0000C5B0 2E0F89EF7CB06198
+00:0000C5B8 94D869C935E7897D
+00:0000C5C0 7DF72B7699B691E3
+00:0000C5C8 104E95F6D442799C
+00:0000C5D0 AB9941AD2A8FFC16
+00:0000C5D8 5407312C55E14AB7
+00:0000C5E0 E438748F3C00C5B8
+00:0000C5E8 81383BA3C42BF431
+00:0000C5F0 7111B75E7BA06AB0
+00:0000C5F8 49F0372498ACCFDB
+00:0000C600 4F7DCF873B2DA11F
+00:0000C608 1B22CABB4B389F51
+00:0000C610 AADAF5DE696B21DB
+00:0000C618 68B9FB43C6D36559
+00:0000C620 DA0BD156F5736888
+00:0000C628 FFC7B43E50580773
+00:0000C630 8757250FA34F13F8
+00:0000C638 055A7F1B3BA86C1E
+00:0000C640 D7F46E6A1F0110FA
+00:0000C648 1C8D184E7A3AE986
+00:0000C650 C38BB9E0E719E3AF
+00:0000C658 DC380F511A87FD14
+00:0000C660 3D292052DC839A10
+00:0000C668 ADBD090F3D8E0D2C
+00:0000C670 BF3AE779B560FF53
+00:0000C678 3D62B986CB0A1A3B
+00:0000C680 C4F8A5E8DE69C0D3
+00:0000C688 DC5AEC6FD6A0E9B3
+00:0000C690 3D7DC6F65441271B
+00:0000C698 53704287DE43768F
+00:0000C6A0 3A65DE8E85CA7B18
+00:0000C6A8 E573A1513C29695E
+00:0000C6B0 3D79669CCD99D898
+00:0000C6B8 6E80969E49737C68
+00:0000C6C0 09A752708F37E019
+00:0000C6C8 646D96EDD3ED6575
+00:0000C6D0 01716327B028D28C
+00:0000C6D8 C7B1B1E345C12675
+00:0000C6E0 D8B55791BED9858C
+00:0000C6E8 2C79EE4A1F168258
+00:0000C6F0 3F89F7F97DC73BF6
+00:0000C6F8 BAE534F55F5F0C38
+00:0000C700 539D67F77083E609
+00:0000C708 006988B2C56FB6A3
+00:0000C710 F80FDC3F9483B4D7
+00:0000C718 27E6353DC4F7E595
+00:0000C720 E9817B5D4BECE15E
+00:0000C728 D75364742E2EAD51
+00:0000C730 E8EB7C9F52BAA64C
+00:0000C738 648482E69EFB7D2A
+00:0000C740 629C2053F182397B
+00:0000C748 E8F2BEA1607024F0
+00:0000C750 FEA341D8EE48B833
+00:0000C758 2D97C4765EC7FB6E
+00:0000C760 D15F283AB075FF26
+00:0000C768 9199DE6D670E0D94
+00:0000C770 EF078F763BC400E1
+00:0000C778 D2C7FF549B9BBB60
+00:0000C780 1A60482E43B9F8EA
+00:0000C788 50AC67ABF15E6A9A
+00:0000C790 9C1330FE557CEA2F
+00:0000C798 796FA0E587BE9E74
+00:0000C7A0 FC7834109637CF30
+00:0000C7A8 82C4746FC34E127E
+00:0000C7B0 771A072F64BB3B34
+00:0000C7B8 E5A64835F8F0384F
+00:0000C7C0 7CD88B91411E9C96
+00:0000C7C8 920963669BA2C80E
+00:0000C7D0 AF9BD1F61C0BFC23
+00:0000C7D8 DECFF3595195D394
+00:0000C7E0 EF8B635E73616B07
+00:0000C7E8 46E968751BB8A61E
+00:0000C7F0 01000F3F0082ECA1
+00:0000C7F8 2905BF932613F9F3
+00:0000C800 CA34E26BD0967BFB
+00:0000C808 28C762A6FFB2F3E4
+00:0000C810 70310068B2E16F81
+00:0000C818 ADDF909718EDBCB9
+00:0000C820 D0B2C79302BBEA0A
+00:0000C828 002C8705DC31A98A
+00:0000C830 258FCB1FC65068F0
+00:0000C838 70E411B747EE0F25
+00:0000C840 3C28F37E15E81617
+00:0000C848 7156329F7AC2F3C4
+00:0000C850 8E906EFF568B96CF
+00:0000C858 1E2FE2CC37B552E3
+00:0000C860 6A01F574BCF3BC41
+00:0000C868 C8917E548EF8D0CB
+00:0000C870 AAE8B4D3B7294B00
+00:0000C878 0A75971CF4AEEF97
+00:0000C880 A8E3F5B21FE39D0F
+00:0000C888 C42E7BFDECDE7158
+00:0000C890 450FDDD775808169
+00:0000C898 3BD2222796A0332A
+00:0000C8A0 DAC9770F6575729D
+00:0000C8A8 65CF0B23A4F93C40
+00:0000C8B0 7DBEFE5304E61D2D
+00:0000C8B8 2D3F14AE519EFE83
+00:0000C8C0 01725CA49DFC723F
+00:0000C8C8 AFBEE6575C838D10
+00:0000C8D0 F083871615205DC4
+00:0000C8D8 9A8206C4E7E39E3F
+00:0000C8E0 EF0FC441CF2BB8C6
+00:0000C8E8 608B670DC0C56119
+00:0000C8F0 3F2F5C8BE2C86A92
+00:0000C8F8 E19974FDDD6BAC53
+00:0000C900 AEFB4CCDA810EE1A
+00:0000C908 3C91B9C97EC8B405
+00:0000C910 DB892B9234237907
+00:0000C918 AEF718C472DD18B8
+00:0000C920 C4DBA6ACB6E78567
+00:0000C928 F950729A96E1BA21
+00:0000C930 DAC3A08A78FA55CF
+00:0000C938 CC76D15269871805
+00:0000C940 3B1E9DA1544D70A3
+00:0000C948 56BAA0118C8EDA66
+00:0000C950 4A5CEDC3C56F2CC9
+00:0000C958 F83156E16D147FF7
+00:0000C960 B8327DA3CCA4DACF
+00:0000C968 FE3D61132EACF4D1
+00:0000C970 3113688F8119E3CE
+00:0000C978 F2451B5F3291B5A8
+00:0000C980 9B5C026A6F8D89EA
+00:0000C988 3B3BA29485FC940F
+00:0000C990 C297352CE84876AB
+00:0000C998 3C6E49A794A2B7F3
+00:0000C9A0 8BD30FC933D33344
+00:0000C9A8 3CF0B01B0E2DFAFB
+00:0000C9B0 C44D43D769700DBD
+00:0000C9B8 201330E19B185F89
+00:0000C9C0 8EC3F0E5346E9834
+00:0000C9C8 C30A2B10A2C67448
+00:0000C9D0 38D2274A88414DE9
+00:0000C9D8 FF0D057A052E3ACE
+00:0000C9E0 93786BBB009C396E
+00:0000C9E8 B363B032C8830E25
+00:0000C9F0 D066B603F432B4AF
+00:0000C9F8 3A9A09FCA992893D
+00:0000CA00 9C0F6E31274F767D
+00:0000CA08 CCDA54159333589D
+00:0000CA10 9DD26BF3F2691BA0
+00:0000CA18 3CE8400EC34BF90B
+00:0000CA20 9160F3CE2D797EED
+00:0000CA28 9B427AFFC9C958D8
+00:0000CA30 B3CAB5EAB0253E3D
+00:0000CA38 E66225D5A367DD1B
+00:0000CA40 6233BB876E60F078
+00:0000CA48 64CF45A5D603CF34
+00:0000CA50 D69D048D96BB67E2
+00:0000CA58 9EF9C1615B532856
+00:0000CA60 169265C4362BE371
+00:0000CA68 3DA514887CC8D307
+00:0000CA70 8ECB1C211D1E81B7
+00:0000CA78 0E6680D4CEB36BC8
+00:0000CA80 2B15DBEB600CE0F9
+00:0000CA88 5D8EEAC249070420
+00:0000CA90 1ACFF04CCC368CA1
+00:0000CA98 2989D8BB69C841C8
+00:0000CAA0 64E4789B328DA496
+00:0000CAA8 67665A7E98342EFE
+00:0000CAB0 7EF4157E0379F3DC
+00:0000CAB8 B2877684AEDDB4BD
+00:0000CAC0 DD0818303B1BE9EB
+00:0000CAC8 17465DBAE3BCC9D1
+00:0000CAD0 AA9A21759319086A
+00:0000CAD8 C29F02C5B4FAE4A6
+00:0000CAE0 8515FB6B2801D496
+00:0000CAE8 676FE4E1084F91C5
+00:0000CAF0 04D9E4006D3FB6F7
+00:0000CAF8 182F895A3110C6B9
+00:0000CB00 9432F480A601F78A
+00:0000CB08 9F2C22FA2B737882
+00:0000CB10 454DF7E81C7B7373
+00:0000CB18 32D5D86820246582
+00:0000CB20 7AF0FE65CDC89DFB
+00:0000CB28 0F97809E7C771329
+00:0000CB30 116175CEC9223367
+00:0000CB38 770C2B9F46F02DAA
+00:0000CB40 73DCC873205EC7BE
+00:0000CB48 BDAB4437EAFD60F9
+00:0000CB50 4E749DCED506E553
+00:0000CB58 78E2528BD7E2B89B
+00:0000CB60 3066C3F46936242E
+00:0000CB68 7CC8CE4FFE9E0975
+00:0000CB70 9ECC068D0D22FC56
+00:0000CB78 E707920458EBEA9C
+00:0000CB80 337FF6E8556AFD0D
+00:0000CB88 6786DC1BFC9F1570
+00:0000CB90 4ED163BD15F5C0FC
+00:0000CB98 893B4B7BB6BA8775
+00:0000CBA0 A94011A3347BFFDB
+00:0000CBA8 9BE3070EBD06CB7D
+00:0000CBB0 E614D8F2B2F878BC
+00:0000CBB8 DB05B28F405C0CDF
+00:0000CBC0 71DEA85953810BDB
+00:0000CBC8 0C7103F1DB5CEC3A
+00:0000CBD0 8F612DBEC587A683
+00:0000CBD8 BC372C08090AC824
+00:0000CBE0 027182B6E97D49C4
+00:0000CBE8 69CED5A78A7B9A0B
+00:0000CBF0 527EE78E924F40EF
+00:0000CBF8 8CBD2BE6E85E47C3
+00:0000CC00 554CFE828283893B
+00:0000CC08 598F8FAA7C456030
+00:0000CC10 E76B47CC1D2AE006
+00:0000CC18 A5D32A9B5BDF7F99
+00:0000CC20 6170685D3829C324
+00:0000CC28 7A6D29C4F89E942B
+00:0000CC30 195C3AADB54BDC44
+00:0000CC38 AB06E2CD35AFCDDD
+00:0000CC40 DCBB18262080ED96
+00:0000CC48 9EC3D34C3219A612
+00:0000CC50 3DDC6D53CD68DE4F
+00:0000CC58 9EA42985A47D821F
+00:0000CC60 6AF5516C527B5758
+00:0000CC68 69FFDEBA5668F53C
+00:0000CC70 F3979111D2269B83
+00:0000CC78 1683E36376AE2E74
+00:0000CC80 F026500AC013A479
+00:0000CC88 07C01B352470BB0F
+00:0000CC90 C193E0B618387177
+00:0000CC98 98A241AACFA2E0C8
+00:0000CCA0 08239FEF4E94ACA9
+00:0000CCA8 A8FA7C723F040A59
+00:0000CCB0 A54C5EB495584413
+00:0000CCB8 1F9A167E8DB9A555
+00:0000CCC0 44CDD02FC03D4BFD
+00:0000CCC8 987B90F9920B28D6
+00:0000CCD0 CBBDE03D6AA5D03C
+00:0000CCD8 8810D37E454349D1
+00:0000CCE0 CEF38F642385E8E3
+00:0000CCE8 2B862CD5BF53DFF0
+00:0000CCF0 09DB5B1D67B43144
+00:0000CCF8 746C24E96C4067CA
+00:0000CD00 E9BD304AC700FECC
+00:0000CD08 74A37275B694288C
+00:0000CD10 E2041C333F0A29A1
+00:0000CD18 E1127F6FB61EACF3
+00:0000CD20 FB1A7EDCD699A793
+00:0000CD28 858375D3C701371D
+00:0000CD30 DCCBDB19B95AD4F4
+00:0000CD38 ECC8C9C452DFE99C
+00:0000CD40 0B26F853ACE001F3
+00:0000CD48 7E3F83F2F013AD4E
+00:0000CD50 3576F40D0C4571D3
+00:0000CD58 6D9E9FAA8E8BAEB0
+00:0000CD60 CA73BF60CEFBE388
+00:0000CD68 BEDCC580D416C1A6
+00:0000CD70 00E7B51C005B9265
+00:0000CD78 C54B69CBC02248EE
+00:0000CD80 1F9C3432177E3B84
+00:0000CD88 3A7144AA30AA548C
+00:0000CD90 A04504CDC4D57848
+00:0000CD98 B03029BF37FA3756
+00:0000CDA0 EA5595D4900544DB
+00:0000CDA8 BD3E4C0CBFB6A973
+00:0000CDB0 77E257CB235E47CC
+00:0000CDB8 5258AC38C07CC5D8
+00:0000CDC0 DA73D9D827F42663
+00:0000CDC8 7AEA548AD01D1592
+00:0000CDD0 FC9D194E76E4F646
+00:0000CDD8 31CFEA8D80A3F909
+00:0000CDE0 8A126DF1D09CDAFF
+00:0000CDE8 2FAE798596C98DFE
+00:0000CDF0 C6F0F3B0EEA3D4D4
+00:0000CDF8 E440A6B609E0E134
+00:0000CE00 2F969BDA555AA5DF
+00:0000CE08 A6B40C213144B9A7
+00:0000CE10 57D7420D519DB339
+00:0000CE18 4211AB2CA5985462
+00:0000CE20 99E690BB7DFE73CB
+00:0000CE28 A2C17D6958462A40
+00:0000CE30 51715A978F0BE51B
+00:0000CE38 A530C55BF56AD4DC
+00:0000CE40 97F47C4636933E51
+00:0000CE48 F4BAFE3C4B1B4807
+00:0000CE50 6BE25DE1B3F4C4A9
+00:0000CE58 168A89125D802FFF
+00:0000CE60 C4D171671B58B299
+00:0000CE68 9AF7AAC653990832
+00:0000CE70 D55EB9EFFE294571
+00:0000CE78 D797CB48D4D35BA2
+00:0000CE80 CE6D8E53260D3993
+00:0000CE88 D87AD4AEE25020D0
+00:0000CE90 E5B306767CEAA45F
+00:0000CE98 EEE915F45098606D
+00:0000CEA0 F064BFD99DED1FB8
+00:0000CEA8 E3C5066C2D7945EC
+00:0000CEB0 542077480375B9C5
+00:0000CEB8 A27A06A227245DCD
+00:0000CEC0 177727C1085D3277
+00:0000CEC8 0AB142D76A407B88
+00:0000CED0 35DA6FC5D20E0658
+00:0000CED8 8C96C06FF7C13A0A
+00:0000CEE0 F9A3413BB01AA8E4
+00:0000CEE8 697E2A0058093B6C
+00:0000CEF0 FF549B24B7745A88
+00:0000CEF8 61A87176A901484E
+00:0000CF00 AD91A600089E28AE
+00:0000CF08 B82608DA1B6CBE67
+00:0000CF10 AF108590970ABCE0
+00:0000CF18 37EE29E241310835
+00:0000CF20 814958E112D431ED
+00:0000CF28 0E82A6ACAEA49192
+00:0000CF30 AF81FE67B4046F5F
+00:0000CF38 A11853602C667C78
+00:0000CF40 6977E770B40F2ED1
+00:0000CF48 D5EB3848208BC126
+00:0000CF50 C2CEE930F4570664
+00:0000CF58 ABDC98E788E43362
+00:0000CF60 5D6FC1012F7DB5DD
+00:0000CF68 CDB16F479A0C6D86
+00:0000CF70 B1DD88B6EA711A17
+00:0000CF78 2E0C479D31673864
+00:0000CF80 7BBA1078EF57721A
+00:0000CF88 D7946F394F52D13F
+00:0000CF90 25598836E83322B8
+00:0000CF98 3E0005017FFA60B6
+00:0000CFA0 18B9FEF6A4ED960D
+00:0000CFA8 217B2563CC8B8E9F
+00:0000CFB0 A59FB1DFBA761102
+00:0000CFB8 121079BD7FAA2B8C
+00:0000CFC0 EA7D90EACA54FA24
+00:0000CFC8 FA9785DF8AFF0E62
+00:0000CFD0 4FAD8F0B7CC9166E
+00:0000CFD8 93B948EB299D696B
+00:0000CFE0 6C2E71574FA9C927
+00:0000CFE8 4BC8A2D02DB9F839
+00:0000CFF0 B3067B7C446705FC
+00:0000CFF8 6ABDCB5141F041B6
+00:0000D000 EFEC02E9DD399AF9
+00:0000D008 D51479D390D71B37
+00:0000D010 5667BDE8797015B7
+00:0000D018 F17CFC68D8805C0B
+00:0000D020 C149B517BF374110
+00:0000D028 EFF0704D4D9C1F63
+00:0000D030 C193CC7C74E458DC
+00:0000D038 0EFE773E78ACAAA7
+00:0000D040 6A8AC68A189BE35D
+00:0000D048 D228681FCCFB70BA
+00:0000D050 DDAD5F7F1E1FB595
+00:0000D058 F6AE8FDBA794CDEB
+00:0000D060 2DC790FA42C177A8
+00:0000D068 157F86CD4FC997C6
+00:0000D070 7B5DF097933B658D
+00:0000D078 8751161A369E4777
+00:0000D080 947BE8DB063F3B92
+00:0000D088 B24FA3E353763A34
+00:0000D090 D26C05CB80908F69
+00:0000D098 E1F5970FD090EE35
+00:0000D0A0 1EF0F6FF829804B5
+00:0000D0A8 274FCADF66BE5F61
+00:0000D0B0 FE2E376D8FF9C043
+00:0000D0B8 B55BCDD783773D2B
+00:0000D0C0 16EBEB0E5E5961CA
+00:0000D0C8 D64A0A3D68C6C112
+00:0000D0D0 0EB1167AFEEAE29C
+00:0000D0D8 676D73A9392764D3
+00:0000D0E0 E95741AF8AF0759B
+00:0000D0E8 771291EB4AEF4B39
+00:0000D0F0 79FC3CA50F1BDFAB
+00:0000D0F8 8F6816F46EE9C277
+00:0000D100 69074D08BAE79610
+00:0000D108 64A26AC532916054
+00:0000D110 55123497C9C34998
+00:0000D118 403B3CAD61E1D5D9
+00:0000D120 D1D3709EB717978A
+00:0000D128 247A1C72B768DA7D
+00:0000D130 54A52335A2937082
+00:0000D138 1ABEC78B60786D2F
+00:0000D140 F6705F0771716BB8
+00:0000D148 7D16D409DB4A6885
+00:0000D150 6764148ACA759B48
+00:0000D158 2CA4F0A4983D6F61
+00:0000D160 B9D7F85C5F1C254D
+00:0000D168 E428A9963B6331BF
+00:0000D170 3337493155674337
+00:0000D178 50411D394B3461AC
+00:0000D180 8B1208EFC2602E87
+00:0000D188 8301B6441DC3A2B4
+00:0000D190 C18C3252FD58A8F8
+00:0000D198 B80CFA4F43FEBC4B
+00:0000D1A0 B70B629E08230B73
+00:0000D1A8 1B503E28F2B9B699
+00:0000D1B0 B9B738A2A1F02771
+00:0000D1B8 D84139C65C750B7E
+00:0000D1C0 E863BBE01C8065E0
+00:0000D1C8 35590314FFA987F2
+00:0000D1D0 FC77A692EFEB76B8
+00:0000D1D8 F6C5F8C504043EFA
+00:0000D1E0 15B90896C342401E
+00:0000D1E8 F168F61531421E7F
+00:0000D1F0 6AD17E42AF61E855
+00:0000D1F8 38FE2B4387AA034A
+00:0000D200 F0B562E643D8AC00
+00:0000D208 E2F29C0B3766C98C
+00:0000D210 E85445C70DE09E28
+00:0000D218 65323CB0DF41D515
+00:0000D220 004C51A18CF19786
+00:0000D228 8E410A08D76B6E59
+00:0000D230 F22100E7E8B7053C
+00:0000D238 DCF5C722EF449EA0
+00:0000D240 4F96E1836D1D997C
+00:0000D248 FB81D97882DF915D
+00:0000D250 04E242FB9B7777C6
+00:0000D258 74A235C0B5E033F2
+00:0000D260 4025ECC1FFC6D101
+00:0000D268 B229B8461981F9B8
+00:0000D270 FFD89BBB1EA52294
+00:0000D278 F3F321BA616DE35C
+00:0000D280 18E463C9E529C539
+00:0000D288 17D49C2104A8634E
+00:0000D290 3985807410B52D31
+00:0000D298 EEFDBA7A0FA9A77A
+00:0000D2A0 B824705A45FAB38C
+00:0000D2A8 316EDA6AD2B8C8D1
+00:0000D2B0 857D34ECA02D306F
+00:0000D2B8 C3D27F0171EB3859
+00:0000D2C0 CD5033D27FCE817A
+00:0000D2C8 D831F9E83CCE3CED
+00:0000D2D0 8F579DB465382BF3
+00:0000D2D8 D2D4C41447DFBE62
+00:0000D2E0 0024AE8EAB03DDD5
+00:0000D2E8 6D88C1B9775D49A9
+00:0000D2F0 8E4810B19998F97E
+00:0000D2F8 7EE44FEC6F614205
+00:0000D300 3B665B28A08CDF78
+00:0000D308 0A81E25B96862618
+00:0000D310 30CEF411C8521912
+00:0000D318 B58247DA04FBFBEB
+00:0000D320 39F1CC2BE9F2F4F5
+00:0000D328 70332C6CE7EC844D
+00:0000D330 14FB9BCEEF622231
+00:0000D338 DE5D9477C0DB0342
+00:0000D340 CDD4CAD175AFD0E7
+00:0000D348 C45C97512D85416D
+00:0000D350 7AFDEED266581309
+00:0000D358 6FA2EB8D57CD0151
+00:0000D360 2EB9104719E681C4
+00:0000D368 1CD5B2AD2E425BFD
+00:0000D370 01F114D608D5C4F9
+00:0000D378 62FE96ED8EC70391
+00:0000D380 979EE0B260D5AAA9
+00:0000D388 3F4BDA4FA0E12A3B
+00:0000D390 D5D2BDE179108426
+00:0000D398 2840C53F70D9E7DE
+00:0000D3A0 7ED322FE0B977135
+00:0000D3A8 FE7978FADD798902
+00:0000D3B0 1222ACF77FA8BEC3
+00:0000D3B8 BBCE29089E321A68
+00:0000D3C0 628BA9F4F7EC8CAA
+00:0000D3C8 757A64DBF9BB1BAC
+00:0000D3D0 C4E802B41A8407B4
+00:0000D3D8 96B3FADCA323D955
+00:0000D3E0 7D23F8791BEF51C5
+00:0000D3E8 52B302BA4B40FC51
+00:0000D3F0 736845A7870076A9
+00:0000D3F8 3EB9D28E427F4D82
+00:0000D400 9A7E7944849ECF48
+00:0000D408 ACBDB4FEFAF264BF
+00:0000D410 ABEB12B86E816C1A
+00:0000D418 344A39283E5225D4
+00:0000D420 BF5CA34C4B066242
+00:0000D428 B6519DCCB90F7FF8
+00:0000D430 8A0A43A9FE265308
+00:0000D438 AC58EDF6214AF993
+00:0000D440 1ED5CB0B4BC423EF
+00:0000D448 2C90D34C198288BC
+00:0000D450 BEDFACE287D03B8A
+00:0000D458 137F5AA54A161F0E
+00:0000D460 C112991FE7F3401E
+00:0000D468 698ABF5E1A65F55A
+00:0000D470 287D4848FC96E39A
+00:0000D478 F29343F753F172E2
+00:0000D480 1EBA76F641A8688F
+00:0000D488 9B957DDF4B22DBE2
+00:0000D490 B149E3710F6FB9D1
+00:0000D498 398D840863BC62C6
+00:0000D4A0 B5D8AE84C4DC31EF
+00:0000D4A8 ACC04F714FAE15AD
+00:0000D4B0 A2EC9A3CA6323062
+00:0000D4B8 E6E83BD4914C0E7A
+00:0000D4C0 C000D56B9AD32D88
+00:0000D4C8 5DFECF70A8D5D626
+00:0000D4D0 25FF39C59590C132
+00:0000D4D8 08DD891C5A97B902
+00:0000D4E0 5D04008553939057
+00:0000D4E8 0FBC322B8E26FE25
+00:0000D4F0 1E0B8C3211C212DD
+00:0000D4F8 94C1E4B963887B41
+00:0000D500 69BFBB79EA1B145A
+00:0000D508 AECDCA5DBFE7A8F5
+00:0000D510 4039831159F4E099
+00:0000D518 FCF904D9B7D90415
+00:0000D520 AC9D967C912685E8
+00:0000D528 B7F758EA71ECA964
+00:0000D530 4B0FDE0855E83266
+00:0000D538 C88F1CFF878B3F92
+00:0000D540 62381B7E6772FFD7
+00:0000D548 3D9A1CB67BE0D899
+00:0000D550 0BB38694B4EC2222
+00:0000D558 168826E2CC5B5FDD
+00:0000D560 B83DC257E5178FAD
+00:0000D568 7060AB57B604CB98
+00:0000D570 2C0D1111897213E4
+00:0000D578 419D9F94D30C11BC
+00:0000D580 54AAB71BED20A0BE
+00:0000D588 4C0E33F2455376CD
+00:0000D590 2E728F7FC5232055
+00:0000D598 2651B53E714590C6
+00:0000D5A0 19759EA399413159
+00:0000D5A8 3FF497F95B7E326E
+00:0000D5B0 212C686D1E2318EC
+00:0000D5B8 1E94621F5068C3ED
+00:0000D5C0 00CD9556625E8CC4
+00:0000D5C8 878D93BDE8270F86
+00:0000D5D0 3288BFAF0DF0AC8C
+00:0000D5D8 AF5FEBF34118044C
+00:0000D5E0 6E20117A541DFC42
+00:0000D5E8 C58A7470B4746BF3
+00:0000D5F0 65C4B541AB54ACAB
+00:0000D5F8 9945BA2BB3B1140B
+00:0000D600 AB1B7A5D9C355055
+00:0000D608 ACB03B95B13B00FC
+00:0000D610 0AA50BE3AC7BDC36
+00:0000D618 1DA1348BE3CE842B
+00:0000D620 5EFA6AAC190AE673
+00:0000D628 E225A71D2661A59B
+00:0000D630 BE7F8FFB3F3D7335
+00:0000D638 C5A31216EC5D8F40
+00:0000D640 B7200987F1D3E87F
+00:0000D648 BF7536A142274A5F
+00:0000D650 E7ECC26CEDBEB655
+00:0000D658 EA72593BEEA53BA0
+00:0000D660 8AAD3D72A5C873A7
+00:0000D668 66CD066F498D46A0
+00:0000D670 7805F8ED7E2EE920
+00:0000D678 B09CC153D5168496
+00:0000D680 6553D384DAE40E39
+00:0000D688 E673C09E1CC969BC
+00:0000D690 581023D81937E7A5
+00:0000D698 77E18C62B156AD98
+00:0000D6A0 6176350F6547F47B
+00:0000D6A8 C685B4C962BFB168
+00:0000D6B0 A2FC4538AC1E8C92
+00:0000D6B8 60E1D08AC3336434
+00:0000D6C0 6FE1523C143B534D
+00:0000D6C8 2A3519028B880EC1
+00:0000D6D0 D0C119FFB4075490
+00:0000D6D8 9CDFD131AFA000A5
+00:0000D6E0 CDCA955B1DD914F5
+00:0000D6E8 13B58DE355F2C37A
+00:0000D6F0 7D62012F83A35A97
+00:0000D6F8 59C873E290972D31
+00:0000D700 237B3F8D2E4B1CC5
+00:0000D708 BCDD78E6058013A9
+00:0000D710 BD3068A462FE6E19
+00:0000D718 39BC1A0D1A193E1E
+00:0000D720 CA18FF2756D1EC9C
+00:0000D728 45C38730E4621B01
+00:0000D730 F4EA2714972E57AF
+00:0000D738 87D32FC614BCF924
+00:0000D740 5FDEC9D547ADFCA5
+00:0000D748 34750413E1AB190C
+00:0000D750 E04F0E2254E6DFA4
+00:0000D758 6D8FA435BC1F922F
+00:0000D760 A673DB1D459B8DCE
+00:0000D768 52DBAD2E0AEFCE30
+00:0000D770 5E150DEA24EBD0B0
+00:0000D778 7CA2B32923C14701
+00:0000D780 FCA7DB675971D8A4
+00:0000D788 0BAB6FB51F996F1F
+00:0000D790 B6FFDF1A5A986770
+00:0000D798 0A88E627B2FB4C40
+00:0000D7A0 6D2A4E106BBAEF4A
+00:0000D7A8 E5C219B1A8C9D3F0
+00:0000D7B0 47F998F601C78B9E
+00:0000D7B8 3E64FDD10D2972C9
+00:0000D7C0 375D62BD9F09CDCA
+00:0000D7C8 594228A343EDE777
+00:0000D7D0 1A5BBDF7E2B7BD18
+00:0000D7D8 AA0EE88991EB8B70
+00:0000D7E0 92E882B79B512299
+00:0000D7E8 472E3FB4FAE15B36
+00:0000D7F0 AB3B4619E1A86138
+00:0000D7F8 F543C3F62D3D56FA
+00:0000D800 46D7E19E5AE93117
+00:0000D808 2B944CFA5FD45CC2
+00:0000D810 EC03C39FADA02619
+00:0000D818 82257A28F68C274F
+00:0000D820 DEB353FDDDCC6713
+00:0000D828 66D57390B85E4677
+00:0000D830 305CE3A566220A3B
+00:0000D838 3A3312DAA56388A9
+00:0000D840 48BF87ABFBD42B47
+00:0000D848 59E28AF46E7291DE
+00:0000D850 DE8846B3CB5123C2
+00:0000D858 F3870287FA6D10AA
+00:0000D860 84271CA25862127F
+00:0000D868 B071D07AEE4078AF
+00:0000D870 BD3426C822A220D6
+00:0000D878 30B32771784C7146
+00:0000D880 B41B8E127B645645
+00:0000D888 D6A0A3EE661D18DF
+00:0000D890 25D4B538E0820FC5
+00:0000D898 41C3FE50FD95F0FE
+00:0000D8A0 FBBB861DCE5CEF2C
+00:0000D8A8 82ACD7662161D440
+00:0000D8B0 362BD84B279C8877
+00:0000D8B8 9973BC5CB0FD7C1E
+00:0000D8C0 78293B6C35AE7BEB
+00:0000D8C8 D29B604142ABE369
+00:0000D8D0 54AC48B99C08E90D
+00:0000D8D8 B78BDE9C1E5950A1
+00:0000D8E0 D0609319D7076A73
+00:0000D8E8 0430048C3BA19CFF
+00:0000D8F0 9E4C04BC48F949C6
+00:0000D8F8 0F3F41091BEA8FD4
+00:0000D900 D21C97787DA8DB48
+00:0000D908 3FACA848BB516DB8
+00:0000D910 4115A0F7ADC1532F
+00:0000D918 0ECFE286649D74DF
+00:0000D920 70976DC8422EEE0C
+00:0000D928 355EBC2D83D86374
+00:0000D930 6404283521BD5B56
+00:0000D938 89BDE5F81C5794CC
+00:0000D940 54722F14ED0ACE68
+00:0000D948 AB67CF1379A4A7B2
+00:0000D950 93D740D7E73FACBD
+00:0000D958 9AF797A167633AC1
+00:0000D960 919CBB5EDD4D2D84
+00:0000D968 DCBEED9CB07770C2
+00:0000D970 1C0910A8F520A24C
+00:0000D978 401CB99D3D6B6852
+00:0000D980 E1EF812C58332B43
+00:0000D988 5D59878EB22D6FC0
+00:0000D990 71810FD9FF1B3F2B
+00:0000D998 9D19D042E972EDB5
+00:0000D9A0 737E6F58296400D6
+00:0000D9A8 2F920EC5A6235534
+00:0000D9B0 5C35F91DF8C99F1E
+00:0000D9B8 7C52C484ACB5416F
+00:0000D9C0 55C446F509AAC3CB
+00:0000D9C8 797180C80D24BEAB
+00:0000D9D0 DCCB94EE05DACFE4
+00:0000D9D8 7D6AB68125B23380
+00:0000D9E0 020734C26E2B0276
+00:0000D9E8 297F076A1851801D
+00:0000D9F0 5C3089665E276432
+00:0000D9F8 EC1B9152129D0097
+00:0000DA00 9E9FB4ACFA038D48
+00:0000DA08 04FB09F834A50A25
+00:0000DA10 F1A22CA3C0C4939C
+00:0000DA18 2CA32591D62DEB22
+00:0000DA20 2AE44B1C9C485194
+00:0000DA28 8A0E690FC0D34829
+00:0000DA30 4E21983FC331D14E
+00:0000DA38 F0FF022EF3A387D9
+00:0000DA40 178D958AC11C7FC0
+00:0000DA48 75F3D336E58C5B5E
+00:0000DA50 47421D95E64239C4
+00:0000DA58 13A8B61AD2B1D310
+00:0000DA60 7C03C16912A1CDDE
+00:0000DA68 5946AE5DF756FBE0
+00:0000DA70 7519F6B1474F3BF3
+00:0000DA78 5AAA90671BC7E0DE
+00:0000DA80 F208707AFD490669
+00:0000DA88 CB3C0B627F8FF256
+00:0000DA90 CC18B099931BABBC
+00:0000DA98 70FFB818C9356645
+00:0000DAA0 022FF356E0C0290B
+00:0000DAA8 FD3304FCDE4CFFAB
+00:0000DAB0 A340BF549A9D974A
+00:0000DAB8 FE8F5E862FB1920B
+00:0000DAC0 B775D8EE65CC4C4A
+00:0000DAC8 AE7026B65C704E35
+00:0000DAD0 512DECB935E7D53E
+00:0000DAD8 85D49F43BB1CA3E6
+00:0000DAE0 5B50D9848E658CF3
+00:0000DAE8 0E83CA5FBCED4DD9
+00:0000DAF0 549602C3839C854C
+00:0000DAF8 92E984C7416576D5
+00:0000DB00 0701860D2BBBDEAB
+00:0000DB08 F5C4064CE7DDFEA2
+00:0000DB10 C201134719BB9523
+00:0000DB18 01A4541E97E33DB9
+00:0000DB20 C34129D45DF02C40
+00:0000DB28 93C1CE8F7864D95A
+00:0000DB30 D1EB27B21B76991E
+00:0000DB38 61ED50B4A759B071
+00:0000DB40 AC96171C48F1E957
+00:0000DB48 18224B9ADF4A46C3
+00:0000DB50 35DB49FFE0B03B74
+00:0000DB58 8A2618BC17B50B3A
+00:0000DB60 DDDE603A824F0060
+00:0000DB68 7290D0C519F5E17C
+00:0000DB70 835B4C4909078A31
+00:0000DB78 DBFF820C35DCB709
+00:0000DB80 52A2D0FF4BF3CF8D
+00:0000DB88 886034F7ECD28D08
+00:0000DB90 CA747EA11BB721A2
+00:0000DB98 E5638ACB16C1FFDF
+00:0000DBA0 783F33A3D53F8C71
+00:0000DBA8 0DD8294FCF42530A
+00:0000DBB0 9F54C0F7866D06B2
+00:0000DBB8 7CC5F4FE520D5BD0
+00:0000DBC0 F56AAE73A443B39B
+00:0000DBC8 9F3B3A53745D817D
+00:0000DBD0 23A85BDF0B8FE742
+00:0000DBD8 40F88C28B7F4AF53
+00:0000DBE0 058C96EB1E4A47A4
+00:0000DBE8 687F8EA1BA67E77F
+00:0000DBF0 6BFDB47C8781A3F7
+00:0000DBF8 95AD259BCC1E4227
+00:0000DC00 CE7AF2C984B1B483
+00:0000DC08 6C82ACA7A1C6B3C5
+00:0000DC10 DF65A1E7252BB509
+00:0000DC18 C4ACC1E946DCD8E2
+00:0000DC20 67904849001190DD
+00:0000DC28 3523F4AC903981DC
+00:0000DC30 20712E8590E251AF
+00:0000DC38 4BE53D62AAEE6E6C
+00:0000DC40 3F5A0025406E7E67
+00:0000DC48 AB940F0F71A85B20
+00:0000DC50 43F7BC50334BE9C6
+00:0000DC58 C241DFA7BC3A793E
+00:0000DC60 39CEA4493CA79407
+00:0000DC68 DA1C02AB7A75418C
+00:0000DC70 2532A6D08EDD86BB
+00:0000DC78 96BE336122F512D3
+00:0000DC80 4A5B6B85AD23E779
+00:0000DC88 96EE875829E2A971
+00:0000DC90 854D6683BAAE6476
+00:0000DC98 97CDFA327C654BEB
+00:0000DCA0 B0E9991C08EA7296
+00:0000DCA8 683CB1A47462983C
+00:0000DCB0 2A3AE3E36E3631C4
+00:0000DCB8 5039E9506F050D9C
+00:0000DCC0 91A647220810F574
+00:0000DCC8 404210CF6AD9268C
+00:0000DCD0 2E2DB03801058F2D
+00:0000DCD8 C731E7C73FEC36F3
+00:0000DCE0 762D21E0B1548C72
+00:0000DCE8 61B187C90BCBB29A
+00:0000DCF0 4CBD76005CC2BA57
+00:0000DCF8 156BC9492A0E2FE0
+00:0000DD00 561571673F3ED061
+00:0000DD08 9FB34E14B285A37D
+00:0000DD10 D60B7707124CF536
+00:0000DD18 E92D5B0A55BA4B66
+00:0000DD20 37DF62B0CAC31004
+00:0000DD28 3D8A71357D8C3B26
+00:0000DD30 01CF437570EAB512
+00:0000DD38 8F4FE3C2010CECEC
+00:0000DD40 49C384A582CCFE95
+00:0000DD48 F6B6A938DD707078
+00:0000DD50 270F6E56484C7012
+00:0000DD58 C45D364F201D3C22
+00:0000DD60 D0781C54FD3751CB
+00:0000DD68 9B62BC079EDA8496
+00:0000DD70 79906BFB0EDEE349
+00:0000DD78 2AE3F315D68EA508
+00:0000DD80 64A2071AF9FC1CE5
+00:0000DD88 62188618C6DC711A
+00:0000DD90 FFADE6BB5A3E4D3F
+00:0000DD98 DE80E1B50C6554E6
+00:0000DDA0 F6CF4CA63AB5B6C8
+00:0000DDA8 D6496EEE44D3D055
+00:0000DDB0 E69AA26786BDF04C
+00:0000DDB8 88715E19FC3F29FE
+00:0000DDC0 C3D9A6812DEB5D91
+00:0000DDC8 D690B6415F31FED4
+00:0000DDD0 0A4CB4FED809867B
+00:0000DDD8 DC6E2300EC45B11E
+00:0000DDE0 9D1BC830BE16BCB5
+00:0000DDE8 FB981D26F5852F0F
+00:0000DDF0 6B253B2CFBB1B682
+00:0000DDF8 DFE8B7E84E173E6E
+00:0000DE00 2948081F01368D77
+00:0000DE08 7E13FF150C49E594
+00:0000DE10 566012A18682D9A1
+00:0000DE18 37E91B6ACAC27079
+00:0000DE20 458CDC2A806BBEB1
+00:0000DE28 2104B2634D78BBEC
+00:0000DE30 849E472E6E5A6055
+00:0000DE38 250B04AA2B1341F1
+00:0000DE40 849AF17D68B46A5C
+00:0000DE48 7779F659A5AB24DD
+00:0000DE50 80E93EF4845D7785
+00:0000DE58 97A81B6400E8AD01
+00:0000DE60 16A84B92F9629012
+00:0000DE68 BB7D116F0D187880
+00:0000DE70 2E8118FC8EB3DE25
+00:0000DE78 A662B3CF79E32D47
+00:0000DE80 D1BF258F3E4BF5CB
+00:0000DE88 11C66B14529AF8D2
+00:0000DE90 4531124C7F6F7192
+00:0000DE98 B179DC1C8372CB02
+00:0000DEA0 D7A348E46F794415
+00:0000DEA8 B37C927DA52C2A52
+00:0000DEB0 824F9B496016A33E
+00:0000DEB8 806BD091B0DED64F
+00:0000DEC0 4F2510EFB705FD7C
+00:0000DEC8 A4CDC974EDB25F0B
+00:0000DED0 95DF00ADBFBDEACF
+00:0000DED8 5B6083080429C284
+00:0000DEE0 9DD511D9CBF15D50
+00:0000DEE8 3FA1E25ECC1F8F2C
+00:0000DEF0 968BC2710BBF30CD
+00:0000DEF8 855E2DDA7AD82125
+00:0000DF00 8A934890D1CD9B96
+00:0000DF08 E2E7D05F89432A72
+00:0000DF10 6B7119E666D031C6
+00:0000DF18 FB115BEFD9AD0924
+00:0000DF20 09660EC3F2D91878
+00:0000DF28 9AAD785058E2C565
+00:0000DF30 7F824873F5AB47DD
+00:0000DF38 404BCD4857873EB8
+00:0000DF40 0FE63ECA0D42D4AC
+00:0000DF48 A83BCAB2EFC1BAEB
+00:0000DF50 101FEE96E3E2E763
+00:0000DF58 9417AF7ABFD86A39
+00:0000DF60 C2FB23EE03AF3A20
+00:0000DF68 608E8D226D562568
+00:0000DF70 C50C8797684642CE
+00:0000DF78 68DFF500FA152477
+00:0000DF80 43B1B8614E6DBE42
+00:0000DF88 BC8D99FD6C11508A
+00:0000DF90 FBE074CB64825D93
+00:0000DF98 657A51774656E6EA
+00:0000DFA0 E353C62B6F200A87
+00:0000DFA8 E530D2C4EBCD85F5
+00:0000DFB0 2437E04BD43DA6B8
+00:0000DFB8 F497B05D0B83DCA8
+00:0000DFC0 BA0EC23C99753621
+00:0000DFC8 2390E51146F94C84
+00:0000DFD0 D08361062E1F1FCD
+00:0000DFD8 9085A685B847CE06
+00:0000DFE0 B59280167654C314
+00:0000DFE8 42B102CA19D7A4BD
+00:0000DFF0 76D06E1F985F3936
+00:0000DFF8 86A7E94897AC12F5
+00:0000E000 44D266B7C25F1EC2
+00:0000E008 EA8A0355242E0DAB
+00:0000E010 C345CD70B4A2580C
+00:0000E018 2461D7F695F834CF
+00:0000E020 ACAF9BA6EA29399A
+00:0000E028 9780ACF04ADBCE16
+00:0000E030 18E3DAEEAAF3F20D
+00:0000E038 66DAECE6224CCEEE
+00:0000E040 D337643CAEAB7A4B
+00:0000E048 BC5138CFBC2A09D7
+00:0000E050 3D502634D81C54AA
+00:0000E058 6CF6EBF190302185
+00:0000E060 DC118E92A990F99C
+00:0000E068 76A1734605B052B8
+00:0000E070 550BE156B9E01AB2
+00:0000E078 7B7A448665C47EC0
+00:0000E080 A65176278C4174E5
+00:0000E088 691728BCF4CE7989
+00:0000E090 9D27B12D8578164C
+00:0000E098 A93D2C5D2B9F765D
+00:0000E0A0 D810A071E0A55A8D
+00:0000E0A8 DD1DC3D5EF1BB39F
+00:0000E0B0 B1C795E31329DDFD
+00:0000E0B8 E4946B809D367DDE
+00:0000E0C0 B299056172B2E2EC
+00:0000E0C8 B6E338540FD21F62
+00:0000E0D0 1F369340862F7393
+00:0000E0D8 BA1BAB89A4749822
+00:0000E0E0 ACEE17EEB049899C
+00:0000E0E8 30C3C9AD6A702816
+00:0000E0F0 C15E6228EBF76318
+00:0000E0F8 D9402EA17EB587CC
+00:0000E100 12EDC100D2ECAC29
+00:0000E108 20B5AF01D15A58E2
+00:0000E110 D7793A8DF6BB8A1D
+00:0000E118 6150A6FD6355D3D3
+00:0000E120 C052D402283536F2
+00:0000E128 9C320CED6AF8D62C
+00:0000E130 3F5EFF68FDE4F7CB
+00:0000E138 66F5326AADEF3593
+00:0000E140 E5C518C14659540D
+00:0000E148 5DD5830341A55D2D
+00:0000E150 4C7BE4E83BDA1ADD
+00:0000E158 6ACD6B8A973575DE
+00:0000E160 31053F9C35898FB1
+00:0000E168 972B09955F9FFC88
+00:0000E170 0E5F7552FF790F72
+00:0000E178 465DE95AA269F1FF
+00:0000E180 A272CD3A71584922
+00:0000E188 F2A1957A381157B5
+00:0000E190 B660C6FE29DAE0A0
+00:0000E198 18455D123A1E4761
+00:0000E1A0 542C4F3F73DFA336
+00:0000E1A8 0C2A8118BDD28ECD
+00:0000E1B0 D8E34B99FD2CB9ED
+00:0000E1B8 2F3E39309A1F5032
+00:0000E1C0 4F53613DA39F3F34
+00:0000E1C8 998F75D3AF3D9509
+00:0000E1D0 D03CCB5EAD9C225B
+00:0000E1D8 74C6655409BC0A75
+00:0000E1E0 3C942AB77851B281
+00:0000E1E8 AB31F184202C4CE3
+00:0000E1F0 63F3E631D61043F8
+00:0000E1F8 924E3DFCC092C302
+00:0000E200 1CB2DF04AF051190
+00:0000E208 CE53D7BCB35C5937
+00:0000E210 4FE6DFCA7331F8D4
+00:0000E218 3959AF8A7E273C28
+00:0000E220 DB069EF61E48983F
+00:0000E228 F9C821AE71120AB0
+00:0000E230 1C923C1AA0253FD0
+00:0000E238 6E4D9C52E50BFAFA
+00:0000E240 C660B64408DEFE3F
+00:0000E248 4F256A94BBF448F9
+00:0000E250 75FFA5B44249127C
+00:0000E258 E333CBAC73C508DB
+00:0000E260 2848C4098DACA683
+00:0000E268 04BDB50BDB2A1705
+00:0000E270 F71104B2B919DDF0
+00:0000E278 8943E0A9C8E80E1F
+00:0000E280 71EA73AE8549CF3A
+00:0000E288 A20E55ED322B3A9E
+00:0000E290 9F1D7C4F9A94D39E
+00:0000E298 E1F2119F8E2E482C
+00:0000E2A0 6C98666981C1744D
+00:0000E2A8 40ADD2D96A473E53
+00:0000E2B0 1479D446906C9336
+00:0000E2B8 B08E72F1CCC0A226
+00:0000E2C0 FD3FA9BCD56DEB8C
+00:0000E2C8 C951FEA090F7BD32
+00:0000E2D0 0C38764698DDE4C9
+00:0000E2D8 E53C85D959CD160A
+00:0000E2E0 F2C638F883A592A6
+00:0000E2E8 562035E8998A0F57
+00:0000E2F0 1EAE94FBC2C24BAF
+00:0000E2F8 F3053287A6DA6AE8
+00:0000E300 F526E694A87E93DA
+00:0000E308 0986DD040F1EC5BA
+00:0000E310 F69D3E82A489A4D1
+00:0000E318 94FBFF83C7E5A10F
+00:0000E320 F0AB829E1E3CEF11
+00:0000E328 440C1A08861094EF
+00:0000E330 E5592E99F6C81E31
+00:0000E338 0A5FF7E09946BE3D
+00:0000E340 643D43A4E9D66C42
+00:0000E348 4377C88D44E9990A
+00:0000E350 252A35122BAA84EB
+00:0000E358 947DB61BBD5A2586
+00:0000E360 EFC29D3C702F0626
+00:0000E368 77E75FD45326445F
+00:0000E370 A5861CD614142302
+00:0000E378 36D4AFBDA5A7229E
+00:0000E380 D164FAC9A6A146A2
+00:0000E388 0C4CDEA657A7325E
+00:0000E390 7A5D2AE8E2267E41
+00:0000E398 34AB4227FCA65EC9
+00:0000E3A0 5B6886AD1D776069
+00:0000E3A8 7ABE343B8483FA3D
+00:0000E3B0 F60388A1B2CDCAD7
+00:0000E3B8 33BDE7AF0EDA6699
+00:0000E3C0 1DE4713A32E24818
+00:0000E3C8 3C7A8CC4F922D10B
+00:0000E3D0 DACC85FDC318757C
+00:0000E3D8 E2CA478BC1E08B37
+00:0000E3E0 A5ACD28D2F88D4F6
+00:0000E3E8 E0825B0255FC2119
+00:0000E3F0 A63BE8108E1DEF91
+00:0000E3F8 3A7E34B428AB34E2
+00:0000E400 A72C0F1796CF47FB
+00:0000E408 DF2AEF1E691D88E3
+00:0000E410 D6124EF503FC0311
+00:0000E418 E4AB0CB5E19AED2D
+00:0000E420 CEA5073A01638F13
+00:0000E428 E7E152B6A5825F34
+00:0000E430 F91D432CC6D7248F
+00:0000E438 1CDB6EC8DA829A95
+00:0000E440 4BE045CEC7ED8724
+00:0000E448 C6899888C567F67E
+00:0000E450 EC1B4938F7508BE1
+00:0000E458 4C3A586C049831D9
+00:0000E460 4647F67839D0E1DE
+00:0000E468 A21B7618D27D7AE1
+00:0000E470 86EF89EFD9B6AC2F
+00:0000E478 A5266EFAACD4CCD8
+00:0000E480 5DAB2984D04ACA1D
+00:0000E488 0A2BB5423587AC6D
+00:0000E490 5F931CCC214061AF
+00:0000E498 C9A4F7C73BF1A3A6
+00:0000E4A0 97C4D1BB0AB38990
+00:0000E4A8 8FB1B64E8672BC00
+00:0000E4B0 7E618A95F7853D22
+00:0000E4B8 D682E704C8AD058B
+00:0000E4C0 151E8C0486F81266
+00:0000E4C8 40D29654D492579B
+00:0000E4D0 BC1BE851EF40239E
+00:0000E4D8 76508B66606DAE9D
+00:0000E4E0 E1B6DB1D97A9963A
+00:0000E4E8 1CB5A1ADEC51F6AC
+00:0000E4F0 2022D6DB35DB8980
+00:0000E4F8 5053B9D2C0F97D39
+00:0000E500 A95E12BA914A2A48
+00:0000E508 2FA93ACCCE785992
+00:0000E510 11F7DA6FB6ED3FB4
+00:0000E518 4726D1E0AE8BF3FB
+00:0000E520 E3C696DE19DEB897
+00:0000E528 CDD28EC597461277
+00:0000E530 A0C6AFFDE11C0D46
+00:0000E538 0908B7F24C9B1F5B
+00:0000E540 EF60839C45C0FB31
+00:0000E548 9FB0A4C4B487A1EA
+00:0000E550 CE807672DC191E37
+00:0000E558 E0DE8FDF701D4371
+00:0000E560 A125D42A8FE78B4C
+00:0000E568 DD528646A8089384
+00:0000E570 115493391F8BC694
+00:0000E578 EB914F6DEEFF5428
+00:0000E580 59F606508D0BCE80
+00:0000E588 25F4A2B682155DD7
+00:0000E590 43256D5B7BC11E3E
+00:0000E598 476994EE4C78DAF8
+00:0000E5A0 C4B48D064A40BA39
+00:0000E5A8 C6746B2432A255D8
+00:0000E5B0 745AF766BE7CDA87
+00:0000E5B8 DED7BD61AB372A09
+00:0000E5C0 6FF8031124774397
+00:0000E5C8 C2CB50749690678B
+00:0000E5D0 30B76FD2B6AF8FE5
+00:0000E5D8 13A70652859D89DC
+00:0000E5E0 7548CFADC70313A1
+00:0000E5E8 0B91229112F1638A
+00:0000E5F0 A581C2CD0725F671
+00:0000E5F8 6BCAC905BE74AB27
+00:0000E600 1F37A33CBDE22E4E
+00:0000E608 8F0522BF2F713733
+00:0000E610 7541E8865E4DD057
+00:0000E618 5AA1426811022040
+00:0000E620 FCF80956FC82B134
+00:0000E628 93EF53FE3DE3B7FD
+00:0000E630 1BF443F3E4BF68ED
+00:0000E638 DD64760662706DC7
+00:0000E640 A542ED96D0D5B776
+00:0000E648 2BE4B9559B382EB8
+00:0000E650 85C8EEA756BE809D
+00:0000E658 22C8D508EA3A1564
+00:0000E660 E962CB6431F8DE5D
+00:0000E668 62F0C826991CDC82
+00:0000E670 625A3C92236FB56D
+00:0000E678 E78F7F17AE3D8645
+00:0000E680 81DE0EBC698CBB92
+00:0000E688 9801638EB5ABE1C6
+00:0000E690 41B35F96E32739DE
+00:0000E698 06D42A04691DF24C
+00:0000E6A0 A82885CD082C419D
+00:0000E6A8 E7F945E800DA8AE8
+00:0000E6B0 ED478ED1D3A22B81
+00:0000E6B8 2E20EF66A6DA7E93
+00:0000E6C0 1B01F8FF1D9D6C86
+00:0000E6C8 5BAA8965B0573B29
+00:0000E6D0 16E7B93DA7260177
+00:0000E6D8 54550CB4BDABD0F0
+00:0000E6E0 A613723D0391E960
+00:0000E6E8 31DDF7D53F62C91F
+00:0000E6F0 DF719F2DC958EDDD
+00:0000E6F8 45D8F1E16C3C294F
+00:0000E700 26F9000DC8622063
+00:0000E708 55F5D92610B2D606
+00:0000E710 BBC661103A94F938
+00:0000E718 20A11264A89B22F0
+00:0000E720 9317E949433F1EF5
+00:0000E728 9C63F403577D2710
+00:0000E730 971E2A86512A2CC6
+00:0000E738 3D441715E0CF5793
+00:0000E740 8BF33AFB5263CEE0
+00:0000E748 976C913FD64889D3
+00:0000E750 AA8856B2E7398F60
+00:0000E758 62F1CBFD32BC73A5
+00:0000E760 88882099473C4F90
+00:0000E768 36ED4CDA4663A5B5
+00:0000E770 969767BE077B34D3
+00:0000E778 5A8984F699E304F3
+00:0000E780 A8653CCA5095D4CF
+00:0000E788 A73569C3869E26A9
+00:0000E790 863D09F07D0ED455
+00:0000E798 418619B4ECEBC7C0
+00:0000E7A0 00035FA95E8B1977
+00:0000E7A8 A968DBAE31025095
+00:0000E7B0 07EEF06D3F98C3A4
+00:0000E7B8 F0C95E3C0473FA6D
+00:0000E7C0 DAF980D4927DD101
+00:0000E7C8 64E065088B7F52DF
+00:0000E7D0 DD25032C0D085AF4
+00:0000E7D8 4FF2897BFA6C4671
+00:0000E7E0 E272A5A1D967D34F
+00:0000E7E8 431592EA2D9ABF67
+00:0000E7F0 41171EB9C93FC275
+00:0000E7F8 A55B24021C50A653
+00:0000E800 CDDFA67538F2A3DA
+00:0000E808 FD1B0628B0647FC4
+00:0000E810 FCC093FA74C95552
+00:0000E818 F075A35A3585C693
+00:0000E820 A9FB4A04E185CC0F
+00:0000E828 91CF68DF0B4FD06B
+00:0000E830 BA55D0B3CE1C064C
+00:0000E838 84189DCE723AEA54
+00:0000E840 713F1AFE03708667
+00:0000E848 D8EDDC8F016F2AF8
+00:0000E850 3BD475F292126F13
+00:0000E858 084A3D5D6BAD24EC
+00:0000E860 86CEFA14005C0664
+00:0000E868 B80E371AA237E2B4
+00:0000E870 D5BE89C28DE77A47
+00:0000E878 026A17C41509CFD0
+00:0000E880 4ED50FE1DCEA72C1
+00:0000E888 279AC611818797E2
+00:0000E890 6A7196F100DBCA63
+00:0000E898 369B3146F46421D9
+00:0000E8A0 C8E7BE5424975E36
+00:0000E8A8 E727DB1BD1422F02
+00:0000E8B0 B07ECEEB2DB21113
+00:0000E8B8 C51F9850311610AA
+00:0000E8C0 2BE77629CF4781BC
+00:0000E8C8 FFAA04C01C071515
+00:0000E8D0 63AEEAAAA1EBF732
+00:0000E8D8 1D7A82AF05180FF9
+00:0000E8E0 49104131ECC5F8B3
+00:0000E8E8 4F84BC7693440022
+00:0000E8F0 2EEE4B84AE92BE4A
+00:0000E8F8 882F57AAADECA6CA
+00:0000E900 8C762ADF9C7E6F2B
+00:0000E908 161566DE1D9693BF
+00:0000E910 D6B81802E8D4FA36
+00:0000E918 A453CFF17F8C2AE7
+00:0000E920 AD7E4C0C79561D23
+00:0000E928 4C94C116FFB3650F
+00:0000E930 F6EFDD0DA0691D6D
+00:0000E938 55555D300C6D993B
+00:0000E940 103576DBBEE533E9
+00:0000E948 09F454FB7ADD0040
+00:0000E950 C1CDA34C7D242BEB
+00:0000E958 2173CC316D439681
+00:0000E960 46C6D7C89D84CC37
+00:0000E968 2F39A5968E2DB8EB
+00:0000E970 0CCAD77863144ACD
+00:0000E978 AB663D24FF73EBBA
+00:0000E980 3E37C9865BEF8010
+00:0000E988 469EEBAE6C7AD554
+00:0000E990 3A4998BF3FDDD7FC
+00:0000E998 EEB723DE2B2B4723
+00:0000E9A0 42DD672FCD47DD9B
+00:0000E9A8 2FA64B2C8DF05F9B
+00:0000E9B0 59B3C42B272FBDD7
+00:0000E9B8 0D6B0593960FEC5E
+00:0000E9C0 400DF92F7303B162
+00:0000E9C8 1CF0D979DAD4C22A
+00:0000E9D0 4E8CB7F1DF43044B
+00:0000E9D8 F6F08582D8704A89
+00:0000E9E0 9F2FB59B74475E34
+00:0000E9E8 7F976475F8155BFD
+00:0000E9F0 AE692463736A85B3
+00:0000E9F8 1A1796D8E0328E57
+00:0000EA00 694230057F046FAA
+00:0000EA08 457BB604BF3BC8F3
+00:0000EA10 BA3293C497789638
+00:0000EA18 496FA6929AA804FE
+00:0000EA20 4DF2FA54A37AA880
+00:0000EA28 2B098B5655785CA6
+00:0000EA30 AABDEF0A2838E57D
+00:0000EA38 4CC22D781C2B0319
+00:0000EA40 50C6365F1419D360
+00:0000EA48 BC8D0D42FD52B408
+00:0000EA50 66FD0290C6F5E03A
+00:0000EA58 723568B95EF98EEE
+00:0000EA60 0A6D24CB3060E2CF
+00:0000EA68 20417C38C28EE120
+00:0000EA70 734E33F1D2E34F94
+00:0000EA78 F7DFA948C47A2546
+00:0000EA80 3686E1ADB36006B6
+00:0000EA88 DABA7BC8833D06E3
+00:0000EA90 7666D8F363742258
+00:0000EA98 1C1F295E250C40BE
+00:0000EAA0 5C23B4CE46DBF9A5
+00:0000EAA8 D6C6D9EC96BBB379
+00:0000EAB0 68EE7A55A42F3D40
+00:0000EAB8 A27E0F0A46A11D34
+00:0000EAC0 64A034CB6A33AE10
+00:0000EAC8 A064E6EDDD8F872E
+00:0000EAD0 B196F075DF67958C
+00:0000EAD8 4E23ECF2CE045379
+00:0000EAE0 9CE22B42B68EBB76
+00:0000EAE8 DD9003E031F7EC4C
+00:0000EAF0 03766C4721E407C5
+00:0000EAF8 66BEB41D10EA80
+                            	   413: compressed_end:
+                            	   414: .align 4
+                            	   415: 
+                            	   416: decompressed_data:
+00:0000EB00 00              	   417: .skip 65536
+00:0000EB01 *
+                            	   418: 
+
+
+Symbols by name:
+ADJUST_SHIFT                     S:00000004
+CONTEXT_GROUP_LENGTH             S:00000003
+CONTEXT_GROUP_OFFSET             S:00000002
+CONTEXT_KIND                     S:00000000
+CONTEXT_REPEATED                 S:FFFFFFFF
+GetBit                           A:00008440
+INIT_ONE_PROB                    S:00008000
+LZDecode                         A:000086A8
+LZDecode_break                   A:00008764
+LZDecode_kind                    A:0000874C
+LZDecode_literal                 A:00008718
+LZDecode_loop                    A:000086BC
+NUM_CONTEXTS                     S:00000600
+NUM_SINGLE_CONTEXTS              S:00000001
+OS_Byte                          S:00000006
+OS_Exit                          S:00000011
+OS_GenerateError                 S:0000002B
+OS_Word                          S:00000007
+One                              A:000084F8
+PARITY_MASK                      S:00000001
+RangeDecodeBit                   A:00008474
+RangeDecodeNumber                A:00008630
+RangeInit                        A:00008604
+Start                            A:00008000
+_DEBUG                           S:00000001
+assert1                          A:00008544
+assert2                          A:00008584
+assert3                          A:000085C4
+compressed_data                  A:00009F68
+compressed_end                   A:0000EAFF
+context                          A:00008768
+decode                           A:0000867C
+decodeNumber                     A:00008690
+decompressed_data                A:0000EB00
+main                             A:0000840C
+stack_base                       A:0000840C
+
+Symbols by value:
+FFFFFFFF CONTEXT_REPEATED
+00000000 CONTEXT_KIND
+00000001 NUM_SINGLE_CONTEXTS
+00000001 _DEBUG
+00000001 PARITY_MASK
+00000002 CONTEXT_GROUP_OFFSET
+00000003 CONTEXT_GROUP_LENGTH
+00000004 ADJUST_SHIFT
+00000006 OS_Byte
+00000007 OS_Word
+00000011 OS_Exit
+0000002B OS_GenerateError
+00000600 NUM_CONTEXTS
+00008000 INIT_ONE_PROB
+00008000 Start
+0000840C main
+0000840C stack_base
+00008440 GetBit
+00008474 RangeDecodeBit
+000084F8 One
+00008544 assert1
+00008584 assert2
+000085C4 assert3
+00008604 RangeInit
+00008630 RangeDecodeNumber
+0000867C decode
+00008690 decodeNumber
+000086A8 LZDecode
+000086BC LZDecode_loop
+00008718 LZDecode_literal
+0000874C LZDecode_kind
+00008764 LZDecode_break
+00008768 context
+00009F68 compressed_data
+0000EAFF compressed_end
+0000EB00 decompressed_data
