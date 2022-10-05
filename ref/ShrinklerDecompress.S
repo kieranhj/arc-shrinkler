@@ -43,7 +43,7 @@ ShrinklerDecompress:
 	moveq.l	#0,d2					; interval_value=0
 	moveq.l	#1,d3					; interval_size=1
 	moveq.l	#1,d4					; bit_buffer=1
-	ror.l	#1,d4					; bit_buffer=bit_buffer (ror) 1 => makes C=1
+	ror.l	#1,d4					; bit_buffer=0x80000000
 
 	; Pushes 1536 items on the stack. (3K)
 	; Init probabilities
@@ -73,7 +73,7 @@ ShrinklerDecompress:
 	bsr.b	GetBit					; [C, X]=GetBit()
 	bcc.b	.readoffset				; if C=0 goto .readoffset
 .readlength:
-	moveq.l	#4,d6					; number_context=4
+	moveq.l	#4,d6					; number_context=4 (=NUM_SINGLE_CONTEXTS + CONTEXT_GROUP_LENGTH)
 	bsr.b	GetNumber				; d0=GetNumber(number_context)
 .copyloop:
 	move.b	(a5,d5.l),(a5)+			; *pOut=pOut[d5] [BYTE]
@@ -85,7 +85,7 @@ ShrinklerDecompress:
 ; => Note that C=bool ref (0=lit, 1=reference).
 	bcc.b	.lit					; if C=0 goto .lit
 .readoffset:
-	moveq.l	#3,d6					; number_context=3 (CONTEXT_GROUP_OFFSET)
+	moveq.l	#3,d6					; number_context=3 (=NUM_SINGLE_CONTEXTS + CONTEXT_GROUP_OFFSET)
 	bsr.b	GetNumber				; d0=GetNumber(number_context)
 	moveq.l	#2,d5					; d5=2
 	sub.l	d0,d5					; d5=2-d0 = -offset
@@ -144,7 +144,7 @@ GetNumber:
 	; Out: Bit in C and X
 
 readbit:
-	add.l	d4,d4					; bit_buffer=bit_buffer << 1
+	add.l	d4,d4					; bit_buffer=bit_buffer << 1, X=top bit
 	bne.b	nonewword				; if bit_buffer!=0 goto nonewword
 	move.l	(a4)+,d4				; bit_buffer=*pIn++ [LONG]
 	addx.l	d4,d4					; bit_buffer=(bit_buffer << 1) | X
@@ -153,7 +153,7 @@ nonewword:
 	add.w	d3,d3					; interval_size=interval_size << 1
 GetBit:
 	tst.w	d3						; [clear C, preserve X?]
-	bpl.b	readbit					; if interval_size>0 goto readbit
+	bpl.b	readbit					; if interval_size<0x8000 goto readbit
 
 	lea.l	4+SINGLE_BIT_CONTEXTS*2(a7,d6.l),a1	; a1=pStack+4+SINGLE_BIT_CONTEXTS*2+bit_context
 	add.l	d6,a1					; a1+=bit_context (=pContext)

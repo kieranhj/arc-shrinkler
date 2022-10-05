@@ -11,6 +11,8 @@
 ; 2022 Kieran Connell.
 ; ============================================================================
 
+.equ _ENABLE_BIT_BUFFER, 0
+
 .equ INIT_ONE_PROB, 0x8000
 .equ ADJUST_SHIFT, 4
 .equ SINGLE_BIT_CONTEXTS, 1
@@ -48,6 +50,7 @@
 ; Returns R0 = bit.
 ; ============================================================================
 GetBit:
+.if _ENABLE_BIT_BUFFER == 0
 	; R1 = bit_in_byte
 	mvn r1, r6					; (~bit_index)
 	and r1, r1, #7				; int bit_in_byte = (~bit_index) & 7;
@@ -65,7 +68,23 @@ GetBit:
 	and r0, r0, #1				; 			 & 1;
 	add r6, r6, #1				; bit_index++
 	mov pc, lr					; return bit
+.else
 
+    movs r12, r12, lsl #1       ; bit_buffer=bit_buffer << 1, C=top bit.
+    bne .1                      ; if bit_buffer!=0 goto nonewword
+    ldr r12, [r10], #4          ; bit_buffer = *pCompressed++ [3210]
+    mov r0, r12, lsr #24        ; [xxx3]
+    orr r0, r0, r12, lsl #24    ; [0xx3]
+    and r1, r12, #0x00ff0000
+    orr r0, r0, r1, lsr #8      ; [0x23]
+    and r1, r12, #0x0000ff00
+    orr r12, r0, r1, lsl #8     ; [0123]
+    adcs r12, r12, r12          ; bit_buffer=(bit_buffer << 1) | C
+.1:                             ; nonewword:
+    movcc r0, #0                ; bit = C
+    movcs r0, #1                ; bit = C
+    mov pc, lr                  ; return bit
+.endif
 
 ; ============================================================================
 ; Implements RangeDecoder::decode(int context_index).
@@ -269,9 +288,11 @@ decodeNumber:
 ; ============================================================================
 LZDecode:
 	str lr, [sp, #-4]!
-	mov r1, #0					; temp but needed in local context.
-	mov r5, #0					; temp but needed in local context.
 	mov r8, #0					; int offset = 0;
+
+    .if _ENABLE_BIT_BUFFER
+    mov r12, #0x80000000        ; bit_buffer = 0x80000000
+    .endif
 
     ; bool ref = false
 LZDecode_literal:				; } else {
@@ -336,7 +357,7 @@ LZDecode_copyloop:				; for (int i = 0 ; i < length ; i++) {
 LZDecode_readoffset:
 	mov r0, #CONTEXT_GROUP_OFFSET
 	bl decodeNumber				;   offset = decodeNumber(LZEncoder::CONTEXT_GROUP_OFFSET)
-	sub r0, r0, #2				;	       - 2;
-	cmp r0, #0					;
+	sub r8, r0, #2				;	       - 2;
+	cmp r8, #0					;
 	bne LZDecode_readlength 	;   if (offset == 0) break;
 	ldr pc, [sp], #4			; return true
