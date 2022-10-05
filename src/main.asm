@@ -5,7 +5,7 @@
 
 .equ _DEBUG, 1
 
-.include "swis.h.asm"
+.include "lib/swis.h.asm"
 
 .org 0x8000
 
@@ -405,9 +405,8 @@ context:
 .skip NUM_CONTEXTS*4
 
 compressed_data:
-.incbin "test.shr"
+.incbin "build/test.shr"
 compressed_end:
 .align 4
 
 decompressed_data:
-.skip 65536

@@ -1,5 +1,5 @@
 Sections:
-00: "seg8000" (8000-1EB00)
+00: "seg8000" (8000-EB00)
 
 
 Source: "main.asm"
@@ -10,9 +10,9 @@ Source: "main.asm"
                             	     5: 
                             	     6: .equ _DEBUG, 1
                             	     7: 
-                            	     8: .include "swis.h.asm"
+                            	     8: .include "lib/swis.h.asm"
 
-Source: "swis.h.asm"
+Source: "lib\swis.h.asm"
                             	     1: .equ OS_WriteC, 0
                             	     2: .equ OS_WriteO, 2
                             	     3: .equ OS_NewLine, 3
@@ -177,364 +177,360 @@ Source: "main.asm"
                             	    70: .equ CONTEXT_GROUP_OFFSET, 2
                             	    71: .equ CONTEXT_GROUP_LENGTH, 3
                             	    72: 
-                            	    73: ; Think I need to build this up from the C implementation,
-                            	    74: ; rather than port the 68K code line-by-line!
-                            	    75: ;.include "arc-shrinkler.asm"
-                            	    76: 
-                            	    77: ; R1 = (local)
-                            	    78: ; R2 = intervalvalue 		(RangeDecoder)
-                            	    79: ; R3 = intervalsize			(RangeDecoder)
-                            	    80: ; R4 = uncertainty			(RangeDecoder)
-                            	    81: ; R5 = (local)
-                            	    82: ; R6 = bit_index			(RangeDecoder)
-                            	    83: ; R7 = (local)
-                            	    84: ; R8 = (local)
-                            	    85: ; R9 = context				(global)
-                            	    86: ; R10 = source				(global)
-                            	    87: ; R11 = dest				(global)
-                            	    88: ; R12 = data_size			?
-                            	    89: ; Returns R0 = bit
-                            	    90: GetBit:
-                            	    91: 	; R1 = bit_in_byte
-00:00008440 0610E0E1        	    92: 	mvn r1, r6					; (~bit_index)
-00:00008444 071001E2        	    93: 	and r1, r1, #7				; int bit_in_byte = (~bit_index) & 7;
-                            	    94: 
-00:00008448 8C0156E1        	    95: 	cmp r6, r12, lsl #3			; if (bit_index++ >= data.size() * 8) {
-00:0000844C 030000BA        	    96: 	blt .1
-00:00008450 016086E2        	    97: 	add r6, r6, #1				; bit_index++
-00:00008454 8440A0E1        	    98: 	mov r4, r4, lsl #1			; uncertainty <<= 1;
-00:00008458 0000A0E3        	    99: 	mov r0, #0					; return 0;
-00:0000845C 0EF0A0E1        	   100: 	mov pc, lr
-                            	   101: .1:
-                            	   102: 	; TODO: Don't read byte every time!
-00:00008460 A601DAE7        	   103: 	ldrb r0, [r10, r6, lsr #3]	; int bit = (data[byte_index]								
-00:00008464 3001A0E1        	   104: 	mov r0, r0, lsr r1			;            >> bit_in_byte)
-00:00008468 010000E2        	   105: 	and r0, r0, #1				; 			 & 1;
-00:0000846C 016086E2        	   106: 	add r6, r6, #1				; bit_index++
-00:00008470 0EF0A0E1        	   107: 	mov pc, lr					; return bit
-                            	   108: 
-                            	   109: ; R1 = (local)
-                            	   110: ; R2 = intervalvalue 		(RangeDecoder)
-                            	   111: ; R3 = intervalsize			(RangeDecoder)
-                            	   112: ; R4 = uncertainty			(RangeDecoder)
-                            	   113: ; R5 = (local)
-                            	   114: ; R6 = bit_index			(RangeDecoder)
-                            	   115: ; R7 = (local)
-                            	   116: ; R8 = (local)
-                            	   117: ; R9 = context				(global)
-                            	   118: ; R10 = source				(global)
-                            	   119: ; R11 = dest				(global)
-                            	   120: ; R12 = data_size			?
-                            	   121: ;
-                            	   122: 
-                            	   123: ; Decode a bit in the given context.
-                            	   124: ; Returns the decoded bit value.
-                            	   125: ; R0 = context_index
-                            	   126: ; Returns R0 = bit
-                            	   127: RangeDecodeBit:
-00:00008474 A2402DE9        	   128: 	stmfd sp!, {r1, r5, r7, lr}	; <= REGISTER PRESSURE!
-                            	   129: 
-                            	   130: 	.if _DEBUG
-00:00008478 000050E3        	   131: 	cmp r0, #0					; assert(context_index < contexts.size());
-00:0000847C 0100004A        	   132: 	bmi .4
-00:00008480 060C50E3        	   133: 	cmp r0, #NUM_CONTEXTS		; assert(context_index < contexts.size());
-00:00008484 010000BA        	   134: 	blt .3
-                            	   135: 	.4:
-00:00008488 B4008FE2        	   136: 	adr r0, assert1
-00:0000848C 2B0000EF        	   137: 	swi OS_GenerateError
-                            	   138: 	.3:
-                            	   139: 	.endif
-                            	   140: 
-00:00008490 04002DE5        	   141: 	str r0, [sp, #-4]!			; <= REGISTER PRESSURE!
-                            	   142: .1:
-00:00008494 020953E3        	   143: 	cmp r3, #0x8000				; while (intervalsize < 0x8000) {
-00:00008498 030000AA        	   144: 	bge .2
-00:0000849C 8330A0E1        	   145: 	mov r3, r3, lsl #1			; 	intervalsize <<= 1;
-00:000084A0 E6FFFFEB        	   146: 	bl GetBit					; 	r0=GetBit()
-00:000084A4 822080E1        	   147: 	orr r2, r0, r2, lsl #1		; 	intervalvalue = (intervalvalue << 1) | getBit();
-00:000084A8 F9FFFFEA        	   148: 	b .1						; }
-                            	   149: .2:
-00:000084AC 04009DE4        	   150: 	ldr r0, [sp], #4			; <= REGISTER PRESSURE!
-00:000084B0 001199E7        	   151: 	ldr r1, [r9, r0, lsl #2]	; unsigned prob = contexts[context_index];
-                            	   152: 
-                            	   153: 	; R0 =	int bit;
-                            	   154: 	; R7 =	unsigned new_prob;
-                            	   155: 	; R8 =	unsigned threshold
-00:000084B4 930108E0        	   156: 	mul r8, r3, r1				; unsigned threshold = (intervalsize * prob) >> 16;
-00:000084B8 2888A0E1        	   157: 	mov r8, r8, lsr #16			
-                            	   158: 
-00:000084BC 080052E1        	   159: 	cmp r2, r8					; if (intervalvalue >= threshold)
-00:000084C0 0C0000BA        	   160: 	blt One
-                            	   161: 	; Zero						; {
-00:000084C4 082042E0        	   162: 	sub r2, r2, r8				; intervalvalue -= threshold;
-00:000084C8 083043E0        	   163: 	sub r3, r3, r8				; intervalsize -= threshold;
-00:000084CC 217241E0        	   164: 	sub r7, r1, r1, lsr #ADJUST_SHIFT	; new_prob = prob - (prob >> ADJUST_SHIFT);	
-                            	   165: 
-                            	   166: 	.if _DEBUG
-00:000084D0 000057E3        	   167: 	cmp r7, #0					; assert(new_prob > 0);
-00:000084D4 0100004A        	   168: 	bmi .5
-00:000084D8 010857E3        	   169: 	cmp r7, #0x10000			; assert(new_prob < 0x10000);
-00:000084DC 010000BA        	   170: 	blt .6
-                            	   171: 	.5:
-00:000084E0 DC008FE2        	   172: 	adr r0, assert3
-00:000084E4 2B0000EF        	   173: 	swi OS_GenerateError
-                            	   174: 	.6:
-                            	   175: 	.endif
-                            	   176: 
-00:000084E8 007189E7        	   177: 	str r7, [r9, r0, lsl #2]	; contexts[context_index] = new_prob;
-00:000084EC 0000A0E3        	   178: 	mov r0, #0					; bit = 0;
-00:000084F0 A240BDE8        	   179: 	ldmfd sp!, {r1, r5, r7, lr}	; return bit
-00:000084F4 0EF0A0E1        	   180: 	mov pc, lr
-                            	   181: 
-                            	   182: One:
-                            	   183: 	.if _DEBUG
-00:000084F8 047082E0        	   184: 	add r7, r2, r4
-00:000084FC 080057E1        	   185: 	cmp r7, r8					; assert(intervalvalue + uncertainty <= threshold);
-00:00008500 010000DA        	   186: 	ble .1
-00:00008504 78008FE2        	   187: 	adr r0, assert2
-00:00008508 2B0000EF        	   188: 	swi OS_GenerateError
-                            	   189: 	.1:
-                            	   190: 	.endif
+                            	    73: ; R1 = (local)
+                            	    74: ; R2 = intervalvalue 		(RangeDecoder)
+                            	    75: ; R3 = intervalsize			(RangeDecoder)
+                            	    76: ; R4 = uncertainty			(RangeDecoder)
+                            	    77: ; R5 = (local)
+                            	    78: ; R6 = bit_index			(RangeDecoder)
+                            	    79: ; R7 = (local)
+                            	    80: ; R8 = (local)
+                            	    81: ; R9 = context				(global)
+                            	    82: ; R10 = source				(global)
+                            	    83: ; R11 = dest				(global)
+                            	    84: ; R12 = data_size			?
+                            	    85: ; Returns R0 = bit
+                            	    86: GetBit:
+                            	    87: 	; R1 = bit_in_byte
+00:00008440 0610E0E1        	    88: 	mvn r1, r6					; (~bit_index)
+00:00008444 071001E2        	    89: 	and r1, r1, #7				; int bit_in_byte = (~bit_index) & 7;
+                            	    90: 
+00:00008448 8C0156E1        	    91: 	cmp r6, r12, lsl #3			; if (bit_index++ >= data.size() * 8) {
+00:0000844C 030000BA        	    92: 	blt .1
+00:00008450 016086E2        	    93: 	add r6, r6, #1				; bit_index++
+00:00008454 8440A0E1        	    94: 	mov r4, r4, lsl #1			; uncertainty <<= 1;
+00:00008458 0000A0E3        	    95: 	mov r0, #0					; return 0;
+00:0000845C 0EF0A0E1        	    96: 	mov pc, lr
+                            	    97: .1:
+                            	    98: 	; TODO: Don't read byte every time!
+00:00008460 A601DAE7        	    99: 	ldrb r0, [r10, r6, lsr #3]	; int bit = (data[byte_index]								
+00:00008464 3001A0E1        	   100: 	mov r0, r0, lsr r1			;            >> bit_in_byte)
+00:00008468 010000E2        	   101: 	and r0, r0, #1				; 			 & 1;
+00:0000846C 016086E2        	   102: 	add r6, r6, #1				; bit_index++
+00:00008470 0EF0A0E1        	   103: 	mov pc, lr					; return bit
+                            	   104: 
+                            	   105: ; R1 = (local)
+                            	   106: ; R2 = intervalvalue 		(RangeDecoder)
+                            	   107: ; R3 = intervalsize			(RangeDecoder)
+                            	   108: ; R4 = uncertainty			(RangeDecoder)
+                            	   109: ; R5 = (local)
+                            	   110: ; R6 = bit_index			(RangeDecoder)
+                            	   111: ; R7 = (local)
+                            	   112: ; R8 = (local)
+                            	   113: ; R9 = context				(global)
+                            	   114: ; R10 = source				(global)
+                            	   115: ; R11 = dest				(global)
+                            	   116: ; R12 = data_size			?
+                            	   117: ;
+                            	   118: 
+                            	   119: ; Decode a bit in the given context.
+                            	   120: ; Returns the decoded bit value.
+                            	   121: ; R0 = context_index
+                            	   122: ; Returns R0 = bit
+                            	   123: RangeDecodeBit:
+00:00008474 A2402DE9        	   124: 	stmfd sp!, {r1, r5, r7, lr}	; <= REGISTER PRESSURE!
+                            	   125: 
+                            	   126: 	.if _DEBUG
+00:00008478 000050E3        	   127: 	cmp r0, #0					; assert(context_index < contexts.size());
+00:0000847C 0100004A        	   128: 	bmi .4
+00:00008480 060C50E3        	   129: 	cmp r0, #NUM_CONTEXTS		; assert(context_index < contexts.size());
+00:00008484 010000BA        	   130: 	blt .3
+                            	   131: 	.4:
+00:00008488 B4008FE2        	   132: 	adr r0, assert1
+00:0000848C 2B0000EF        	   133: 	swi OS_GenerateError
+                            	   134: 	.3:
+                            	   135: 	.endif
+                            	   136: 
+00:00008490 04002DE5        	   137: 	str r0, [sp, #-4]!			; <= REGISTER PRESSURE!
+                            	   138: .1:
+00:00008494 020953E3        	   139: 	cmp r3, #0x8000				; while (intervalsize < 0x8000) {
+00:00008498 030000AA        	   140: 	bge .2
+00:0000849C 8330A0E1        	   141: 	mov r3, r3, lsl #1			; 	intervalsize <<= 1;
+00:000084A0 E6FFFFEB        	   142: 	bl GetBit					; 	r0=GetBit()
+00:000084A4 822080E1        	   143: 	orr r2, r0, r2, lsl #1		; 	intervalvalue = (intervalvalue << 1) | getBit();
+00:000084A8 F9FFFFEA        	   144: 	b .1						; }
+                            	   145: .2:
+00:000084AC 04009DE4        	   146: 	ldr r0, [sp], #4			; <= REGISTER PRESSURE!
+00:000084B0 001199E7        	   147: 	ldr r1, [r9, r0, lsl #2]	; unsigned prob = contexts[context_index];
+                            	   148: 
+                            	   149: 	; R0 =	int bit;
+                            	   150: 	; R7 =	unsigned new_prob;
+                            	   151: 	; R8 =	unsigned threshold
+00:000084B4 930108E0        	   152: 	mul r8, r3, r1				; unsigned threshold = (intervalsize * prob) >> 16;
+00:000084B8 2888A0E1        	   153: 	mov r8, r8, lsr #16			
+                            	   154: 
+00:000084BC 080052E1        	   155: 	cmp r2, r8					; if (intervalvalue >= threshold)
+00:000084C0 0C0000BA        	   156: 	blt One
+                            	   157: 	; Zero						; {
+00:000084C4 082042E0        	   158: 	sub r2, r2, r8				; intervalvalue -= threshold;
+00:000084C8 083043E0        	   159: 	sub r3, r3, r8				; intervalsize -= threshold;
+00:000084CC 217241E0        	   160: 	sub r7, r1, r1, lsr #ADJUST_SHIFT	; new_prob = prob - (prob >> ADJUST_SHIFT);	
+                            	   161: 
+                            	   162: 	.if _DEBUG
+00:000084D0 000057E3        	   163: 	cmp r7, #0					; assert(new_prob > 0);
+00:000084D4 0100004A        	   164: 	bmi .5
+00:000084D8 010857E3        	   165: 	cmp r7, #0x10000			; assert(new_prob < 0x10000);
+00:000084DC 010000BA        	   166: 	blt .6
+                            	   167: 	.5:
+00:000084E0 DC008FE2        	   168: 	adr r0, assert3
+00:000084E4 2B0000EF        	   169: 	swi OS_GenerateError
+                            	   170: 	.6:
+                            	   171: 	.endif
+                            	   172: 
+00:000084E8 007189E7        	   173: 	str r7, [r9, r0, lsl #2]	; contexts[context_index] = new_prob;
+00:000084EC 0000A0E3        	   174: 	mov r0, #0					; bit = 0;
+00:000084F0 A240BDE8        	   175: 	ldmfd sp!, {r1, r5, r7, lr}	; return bit
+00:000084F4 0EF0A0E1        	   176: 	mov pc, lr
+                            	   177: 
+                            	   178: One:
+                            	   179: 	.if _DEBUG
+00:000084F8 047082E0        	   180: 	add r7, r2, r4
+00:000084FC 080057E1        	   181: 	cmp r7, r8					; assert(intervalvalue + uncertainty <= threshold);
+00:00008500 010000DA        	   182: 	ble .1
+00:00008504 78008FE2        	   183: 	adr r0, assert2
+00:00008508 2B0000EF        	   184: 	swi OS_GenerateError
+                            	   185: 	.1:
+                            	   186: 	.endif
+                            	   187: 
+00:0000850C 0830A0E1        	   188: 	mov r3, r8					; intervalsize = threshold;
+00:00008510 0F7C81E2FF7087E2	   189: 	add r7, r1, #0xffff >> ADJUST_SHIFT	; new_prob = prob + (0xffff >> ADJUST_SHIFT) 
+00:00008518 217247E0        	   190: 	sub r7, r7, r1, lsr #ADJUST_SHIFT	;          - (prob >> ADJUST_SHIFT);
                             	   191: 
-00:0000850C 0830A0E1        	   192: 	mov r3, r8					; intervalsize = threshold;
-00:00008510 0F7C81E2FF7087E2	   193: 	add r7, r1, #0xffff >> ADJUST_SHIFT	; new_prob = prob + (0xffff >> ADJUST_SHIFT) 
-00:00008518 217247E0        	   194: 	sub r7, r7, r1, lsr #ADJUST_SHIFT	;          - (prob >> ADJUST_SHIFT);
-                            	   195: 
-                            	   196: 	.if _DEBUG
-00:0000851C 000057E3        	   197: 	cmp r7, #0					; assert(new_prob > 0);
-00:00008520 0100004A        	   198: 	bmi .4 
-00:00008524 010857E3        	   199: 	cmp r7, #0x10000			; assert(new_prob < 0x10000);
-00:00008528 010000BA        	   200: 	blt .3
-                            	   201: 	.4:
-00:0000852C 90008FE2        	   202: 	adr r0, assert3
-00:00008530 2B0000EF        	   203: 	swi OS_GenerateError
-                            	   204: 	.3:
-                            	   205: 	.endif
-                            	   206: 
-00:00008534 007189E7        	   207: 	str r7, [r9, r0, lsl #2]	; contexts[context_index] = new_prob;
-00:00008538 0100A0E3        	   208: 	mov r0, #1					; bit = 1;
-00:0000853C A240BDE8        	   209: 	ldmfd sp!, {r1, r5, r7, lr}	; return bit
-00:00008540 0EF0A0E1        	   210: 	mov pc, lr
-                            	   211: 
-                            	   212: .if _DEBUG
-                            	   213: assert1: ;The error block
-00:00008544 12000000        	   214:     .long 18
-00:00008548 6173736572742863	   215: 	.byte "assert(context_index < contexts.size()); FAILED"
+                            	   192: 	.if _DEBUG
+00:0000851C 000057E3        	   193: 	cmp r7, #0					; assert(new_prob > 0);
+00:00008520 0100004A        	   194: 	bmi .4 
+00:00008524 010857E3        	   195: 	cmp r7, #0x10000			; assert(new_prob < 0x10000);
+00:00008528 010000BA        	   196: 	blt .3
+                            	   197: 	.4:
+00:0000852C 90008FE2        	   198: 	adr r0, assert3
+00:00008530 2B0000EF        	   199: 	swi OS_GenerateError
+                            	   200: 	.3:
+                            	   201: 	.endif
+                            	   202: 
+00:00008534 007189E7        	   203: 	str r7, [r9, r0, lsl #2]	; contexts[context_index] = new_prob;
+00:00008538 0100A0E3        	   204: 	mov r0, #1					; bit = 1;
+00:0000853C A240BDE8        	   205: 	ldmfd sp!, {r1, r5, r7, lr}	; return bit
+00:00008540 0EF0A0E1        	   206: 	mov pc, lr
+                            	   207: 
+                            	   208: .if _DEBUG
+                            	   209: assert1: ;The error block
+00:00008544 12000000        	   210:     .long 18
+00:00008548 6173736572742863	   211: 	.byte "assert(context_index < contexts.size()); FAILED"
 00:00008550 6F6E746578745F69
 00:00008558 6E646578203C2063
 00:00008560 6F6E74657874732E
 00:00008568 73697A652829293B
 00:00008570 204641494C4544
-                            	   216: 	.align 4
-00:00008580 00000000        	   217: 	.long 0
-                            	   218: 
-                            	   219: assert2: ;The error block
-00:00008584 12000000        	   220:     .long 18
-00:00008588 6173736572742869	   221: 	.byte "assert(intervalvalue + uncertainty <= threshold); FAILED"
+                            	   212: 	.align 4
+00:00008580 00000000        	   213: 	.long 0
+                            	   214: 
+                            	   215: assert2: ;The error block
+00:00008584 12000000        	   216:     .long 18
+00:00008588 6173736572742869	   217: 	.byte "assert(intervalvalue + uncertainty <= threshold); FAILED"
 00:00008590 6E74657276616C76
 00:00008598 616C7565202B2075
 00:000085A0 6E6365727461696E
 00:000085A8 7479203C3D207468
 00:000085B0 726573686F6C6429
 00:000085B8 3B204641494C4544
-                            	   222: 	.align 4
-00:000085C0 00000000        	   223: 	.long 0
-                            	   224: 
-                            	   225: assert3: ;The error block
-00:000085C4 12000000        	   226:     .long 18
-00:000085C8 617373657274286E	   227: 	.byte "assert(new_prob > 0 && new_prob < 0x10000); FAILED"
+                            	   218: 	.align 4
+00:000085C0 00000000        	   219: 	.long 0
+                            	   220: 
+                            	   221: assert3: ;The error block
+00:000085C4 12000000        	   222:     .long 18
+00:000085C8 617373657274286E	   223: 	.byte "assert(new_prob > 0 && new_prob < 0x10000); FAILED"
 00:000085D0 65775F70726F6220
 00:000085D8 3E2030202626206E
 00:000085E0 65775F70726F6220
 00:000085E8 3C20307831303030
 00:000085F0 30293B204641494C
 00:000085F8 4544
-                            	   228: 	.align 4
-00:00008600 00000000        	   229: 	.long 0
-                            	   230: .endif
-                            	   231: 
-                            	   232: RangeInit:
-00:00008604 0060A0E3        	   233: 	mov r6, #0					; bit_index = 0;
-00:00008608 0130A0E3        	   234: 	mov r3, #1					; intervalsize = 1;
-00:0000860C 0020A0E3        	   235: 	mov r2, #0					; intervalvalue = 0;
-00:00008610 0140A0E3        	   236: 	mov r4, #1					; uncertainty = 1;
-                            	   237: 
-00:00008614 0219A0E3        	   238: 	mov r1, #INIT_ONE_PROB
-00:00008618 050CA0E3FF0080E3	   239: 	mov r0, #NUM_CONTEXTS-1
-                            	   240: .1:
-00:00008620 001189E7        	   241: 	str r1, [r9, r0, lsl #2]	; contexts[context_index] = 0x8000;
-00:00008624 010050E2        	   242: 	subs r0, r0, #1
-00:00008628 FCFFFF5A        	   243: 	bpl .1
-00:0000862C 0EF0A0E1        	   244: 	mov pc, lr
-                            	   245: 
-                            	   246: 
-                            	   247: ; R1 = (local)
-                            	   248: ; R2 = intervalvalue 		(RangeDecoder)
-                            	   249: ; R3 = intervalsize			(RangeDecoder)
-                            	   250: ; R4 = uncertainty			(RangeDecoder)
-                            	   251: ; R5 = (local)
-                            	   252: ; R6 = bit_index			(RangeDecoder)
-                            	   253: ; R7 = (local)
-                            	   254: ; R8 = (local)
-                            	   255: ; R9 = context				(global)
-                            	   256: ; R10 = source				(global)
-                            	   257: ; R11 = dest				(global)
-                            	   258: ; R12 = data_size			?
-                            	   259: 
-                            	   260: ; Decode a number >= 2 using a variable-length encoding.
-                            	   261: ; Returns the decoded number.
-                            	   262: ; R0 = base_context
-                            	   263: ; Returns R0 = number
-                            	   264: RangeDecodeNumber:
-00:00008630 04E02DE5        	   265: 	str lr, [sp, #-4]!
-00:00008634 0050A0E1        	   266: 	mov r5, r0				; base_context
-00:00008638 0010A0E3        	   267: 	mov r1, #0				; for (i = 0 ;; i++) {
-                            	   268: .1:
-00:0000863C 810085E0        	   269: 	add r0, r5, r1, lsl #1	; 	context = base_context + (i * 2
-00:00008640 020080E2        	   270: 	add r0, r0, #2			;           + 2);
-00:00008644 8AFFFFEB        	   271: 	bl RangeDecodeBit		;   decode(context)
-00:00008648 000050E3        	   272: 	cmp r0, #0
-00:0000864C 0100000A        	   273: 	beq .2					;   if (decode(context) == 0) break;
-00:00008650 011081E2        	   274: 	add r1, r1, #1			;   i++ }
-00:00008654 F8FFFFEA        	   275: 	b .1
-                            	   276: .2:
-00:00008658 0170A0E3        	   277: 	mov r7, #1				; int number = 1;
-                            	   278: .3:							; for (; i >= 0 ; i--) {
-00:0000865C 810085E0        	   279: 	add r0, r5, r1, lsl #1	;   context = base_context + (i * 2
-00:00008660 010080E2        	   280: 	add r0, r0, #1			; 		    + 1);
-00:00008664 82FFFFEB        	   281: 	bl RangeDecodeBit		;   decode(context);
-00:00008668 877080E1        	   282: 	orr r7, r0, r7, lsl #1	;   number = (number << 1) | bit;
-00:0000866C 011051E2        	   283: 	subs r1, r1, #1			;   i--
-00:00008670 F9FFFF5A        	   284: 	bpl .3					; }
-                            	   285: 
-00:00008674 0700A0E1        	   286: 	mov r0, r7
-00:00008678 04F09DE4        	   287: 	ldr pc, [sp], #4		; return number;
-                            	   288: 
-                            	   289: ; R1 = (local)
-                            	   290: ; R2 = intervalvalue 		(RangeDecoder)
-                            	   291: ; R3 = intervalsize			(RangeDecoder)
-                            	   292: ; R4 = uncertainty			(RangeDecoder)
-                            	   293: ; R5 = (local)
-                            	   294: ; R6 = bit_index			(RangeDecoder)
-                            	   295: ; R7 = (local)
-                            	   296: ; R8 = (local)
-                            	   297: ; R9 = context				(global)
-                            	   298: ; R10 = source				(global)
-                            	   299: ; R11 = dest				(global)
-                            	   300: ; R12 = data_size			?
-                            	   301: ;
-                            	   302: ; R0 = context
-                            	   303: ; Returns R0 = decode(NUM_SINGLE_CONTEXTS + context)
-                            	   304: decode:
-00:0000867C A2412DE9        	   305: 	stmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
-00:00008680 010080E2        	   306: 	add r0, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + context
-00:00008684 7AFFFFEB        	   307: 	bl RangeDecodeBit				; decode(...)
-00:00008688 A241BDE8        	   308: 	ldmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
-00:0000868C 0EF0A0E1        	   309: 	mov pc, lr
-                            	   310: 
-                            	   311: ; R0 = context_group
-                            	   312: ; Returns R0 = decodeNumber(NUM_SINGLE_CONTEXTS + (context_group << 8))
-                            	   313: decodeNumber:
-00:00008690 A2412DE9        	   314: 	stmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
-00:00008694 0004A0E1        	   315: 	mov r0, r0, lsl #8
-00:00008698 010080E2        	   316: 	add r0, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + (context_group << 8));
-00:0000869C E3FFFFEB        	   317: 	bl RangeDecodeNumber			; decodeNumber(...)
-00:000086A0 A241BDE8        	   318: 	ldmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
-00:000086A4 0EF0A0E1        	   319: 	mov pc, lr
-                            	   320: 
-                            	   321: 
-                            	   322: ; R1 = (local)
-                            	   323: ; R2 = intervalvalue 		(RangeDecoder)
-                            	   324: ; R3 = intervalsize			(RangeDecoder)
-                            	   325: ; R4 = uncertainty			(RangeDecoder)
-                            	   326: ; R5 = (local)
-                            	   327: ; R6 = bit_index			(RangeDecoder)
-                            	   328: ; R7 = (local)
-                            	   329: ; R8 = (local)
-                            	   330: ; R9 = context				(global)
-                            	   331: ; R10 = source				(global)
-                            	   332: ; R11 = dest				(global)
-                            	   333: ; R12 = data_size			?
-                            	   334: ;
-                            	   335: ; Returns R0 = success
-                            	   336: LZDecode:
-00:000086A8 04E02DE5        	   337: 	str lr, [sp, #-4]!
-00:000086AC 0010A0E3        	   338: 	mov r1, #0					; bool ref = false;
-00:000086B0 0050A0E3        	   339: 	mov r5, #0					; bool prev_was_ref = false;
-00:000086B4 0070A0E3        	   340: 	mov r7, #0					; int pos = 0;
-00:000086B8 0080A0E3        	   341: 	mov r8, #0					; int offset = 0;
+                            	   224: 	.align 4
+00:00008600 00000000        	   225: 	.long 0
+                            	   226: .endif
+                            	   227: 
+                            	   228: RangeInit:
+00:00008604 0060A0E3        	   229: 	mov r6, #0					; bit_index = 0;
+00:00008608 0130A0E3        	   230: 	mov r3, #1					; intervalsize = 1;
+00:0000860C 0020A0E3        	   231: 	mov r2, #0					; intervalvalue = 0;
+00:00008610 0140A0E3        	   232: 	mov r4, #1					; uncertainty = 1;
+                            	   233: 
+00:00008614 0219A0E3        	   234: 	mov r1, #INIT_ONE_PROB
+00:00008618 050CA0E3FF0080E3	   235: 	mov r0, #NUM_CONTEXTS-1
+                            	   236: .1:
+00:00008620 001189E7        	   237: 	str r1, [r9, r0, lsl #2]	; contexts[context_index] = 0x8000;
+00:00008624 010050E2        	   238: 	subs r0, r0, #1
+00:00008628 FCFFFF5A        	   239: 	bpl .1
+00:0000862C 0EF0A0E1        	   240: 	mov pc, lr
+                            	   241: 
+                            	   242: 
+                            	   243: ; R1 = (local)
+                            	   244: ; R2 = intervalvalue 		(RangeDecoder)
+                            	   245: ; R3 = intervalsize			(RangeDecoder)
+                            	   246: ; R4 = uncertainty			(RangeDecoder)
+                            	   247: ; R5 = (local)
+                            	   248: ; R6 = bit_index			(RangeDecoder)
+                            	   249: ; R7 = (local)
+                            	   250: ; R8 = (local)
+                            	   251: ; R9 = context				(global)
+                            	   252: ; R10 = source				(global)
+                            	   253: ; R11 = dest				(global)
+                            	   254: ; R12 = data_size			?
+                            	   255: 
+                            	   256: ; Decode a number >= 2 using a variable-length encoding.
+                            	   257: ; Returns the decoded number.
+                            	   258: ; R0 = base_context
+                            	   259: ; Returns R0 = number
+                            	   260: RangeDecodeNumber:
+00:00008630 04E02DE5        	   261: 	str lr, [sp, #-4]!
+00:00008634 0050A0E1        	   262: 	mov r5, r0				; base_context
+00:00008638 0010A0E3        	   263: 	mov r1, #0				; for (i = 0 ;; i++) {
+                            	   264: .1:
+00:0000863C 810085E0        	   265: 	add r0, r5, r1, lsl #1	; 	context = base_context + (i * 2
+00:00008640 020080E2        	   266: 	add r0, r0, #2			;           + 2);
+00:00008644 8AFFFFEB        	   267: 	bl RangeDecodeBit		;   decode(context)
+00:00008648 000050E3        	   268: 	cmp r0, #0
+00:0000864C 0100000A        	   269: 	beq .2					;   if (decode(context) == 0) break;
+00:00008650 011081E2        	   270: 	add r1, r1, #1			;   i++ }
+00:00008654 F8FFFFEA        	   271: 	b .1
+                            	   272: .2:
+00:00008658 0170A0E3        	   273: 	mov r7, #1				; int number = 1;
+                            	   274: .3:							; for (; i >= 0 ; i--) {
+00:0000865C 810085E0        	   275: 	add r0, r5, r1, lsl #1	;   context = base_context + (i * 2
+00:00008660 010080E2        	   276: 	add r0, r0, #1			; 		    + 1);
+00:00008664 82FFFFEB        	   277: 	bl RangeDecodeBit		;   decode(context);
+00:00008668 877080E1        	   278: 	orr r7, r0, r7, lsl #1	;   number = (number << 1) | bit;
+00:0000866C 011051E2        	   279: 	subs r1, r1, #1			;   i--
+00:00008670 F9FFFF5A        	   280: 	bpl .3					; }
+                            	   281: 
+00:00008674 0700A0E1        	   282: 	mov r0, r7
+00:00008678 04F09DE4        	   283: 	ldr pc, [sp], #4		; return number;
+                            	   284: 
+                            	   285: ; R1 = (local)
+                            	   286: ; R2 = intervalvalue 		(RangeDecoder)
+                            	   287: ; R3 = intervalsize			(RangeDecoder)
+                            	   288: ; R4 = uncertainty			(RangeDecoder)
+                            	   289: ; R5 = (local)
+                            	   290: ; R6 = bit_index			(RangeDecoder)
+                            	   291: ; R7 = (local)
+                            	   292: ; R8 = (local)
+                            	   293: ; R9 = context				(global)
+                            	   294: ; R10 = source				(global)
+                            	   295: ; R11 = dest				(global)
+                            	   296: ; R12 = data_size			?
+                            	   297: ;
+                            	   298: ; R0 = context
+                            	   299: ; Returns R0 = decode(NUM_SINGLE_CONTEXTS + context)
+                            	   300: decode:
+00:0000867C A2412DE9        	   301: 	stmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+00:00008680 010080E2        	   302: 	add r0, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + context
+00:00008684 7AFFFFEB        	   303: 	bl RangeDecodeBit				; decode(...)
+00:00008688 A241BDE8        	   304: 	ldmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+00:0000868C 0EF0A0E1        	   305: 	mov pc, lr
+                            	   306: 
+                            	   307: ; R0 = context_group
+                            	   308: ; Returns R0 = decodeNumber(NUM_SINGLE_CONTEXTS + (context_group << 8))
+                            	   309: decodeNumber:
+00:00008690 A2412DE9        	   310: 	stmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+00:00008694 0004A0E1        	   311: 	mov r0, r0, lsl #8
+00:00008698 010080E2        	   312: 	add r0, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + (context_group << 8));
+00:0000869C E3FFFFEB        	   313: 	bl RangeDecodeNumber			; decodeNumber(...)
+00:000086A0 A241BDE8        	   314: 	ldmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+00:000086A4 0EF0A0E1        	   315: 	mov pc, lr
+                            	   316: 
+                            	   317: 
+                            	   318: ; R1 = (local)
+                            	   319: ; R2 = intervalvalue 		(RangeDecoder)
+                            	   320: ; R3 = intervalsize			(RangeDecoder)
+                            	   321: ; R4 = uncertainty			(RangeDecoder)
+                            	   322: ; R5 = (local)
+                            	   323: ; R6 = bit_index			(RangeDecoder)
+                            	   324: ; R7 = (local)
+                            	   325: ; R8 = (local)
+                            	   326: ; R9 = context				(global)
+                            	   327: ; R10 = source				(global)
+                            	   328: ; R11 = dest				(global)
+                            	   329: ; R12 = data_size			?
+                            	   330: ;
+                            	   331: ; Returns R0 = success
+                            	   332: LZDecode:
+00:000086A8 04E02DE5        	   333: 	str lr, [sp, #-4]!
+00:000086AC 0010A0E3        	   334: 	mov r1, #0					; bool ref = false;
+00:000086B0 0050A0E3        	   335: 	mov r5, #0					; bool prev_was_ref = false;
+00:000086B4 0070A0E3        	   336: 	mov r7, #0					; int pos = 0;
+00:000086B8 0080A0E3        	   337: 	mov r8, #0					; int offset = 0;
+                            	   338: 
+                            	   339: LZDecode_loop:					; do {
+00:000086BC 000051E3        	   340: 	cmp r1, #0					; if (ref) {
+00:000086C0 1400000A        	   341: 	beq LZDecode_literal
                             	   342: 
-                            	   343: LZDecode_loop:					; do {
-00:000086BC 000051E3        	   344: 	cmp r1, #0					; if (ref) {
-00:000086C0 1400000A        	   345: 	beq LZDecode_literal
-                            	   346: 
-00:000086C4 0000A0E3        	   347: 	mov r0, #0					; bool repeated = false;
-00:000086C8 000055E3        	   348: 	cmp r5, #0					; if (!prev_was_ref) {
-00:000086CC 0000E003        	   349: 	moveq r0, #CONTEXT_REPEATED ;
-00:000086D0 E9FFFF0B        	   350: 	bleq decode					;   repeated = decode(LZEncoder::CONTEXT_REPEATED);
-                            	   351: 								; }
-00:000086D4 000050E3        	   352: 	cmp r0, #0					; if (!repeated) {
-00:000086D8 0400001A        	   353: 	bne .1						;
-00:000086DC 0200A0E3        	   354: 	mov r0, #CONTEXT_GROUP_OFFSET
-00:000086E0 EAFFFFEB        	   355: 	bl decodeNumber				;   offset = decodeNumber(LZEncoder::CONTEXT_GROUP_OFFSET)
-00:000086E4 028040E2        	   356: 	sub r8, r0, #2				;	       - 2;
-00:000086E8 000058E3        	   357: 	cmp r8, #0					;
-00:000086EC 1C00000A        	   358: 	beq LZDecode_break			;   if (offset == 0) break;
-                            	   359: .1:								; }
-00:000086F0 0300A0E3        	   360: 	mov r0, #CONTEXT_GROUP_LENGTH
-00:000086F4 E5FFFFEB        	   361: 	bl decodeNumber				; int length = decodeNumber(LZEncoder::CONTEXT_GROUP_LENGTH);
-                            	   362: 
-00:000086F8 007087E0        	   363: 	add r7, r7, r0				; pos += length;
-                            	   364: 
-                            	   365: 	; Copied from Verifier::receiveReference(offset, length)
-00:000086FC 08504BE0        	   366: 	sub r5, r11, r8				; pos - offset
-                            	   367: .2:								; for (int i = 0 ; i < length ; i++) {
-00:00008700 0110D5E4        	   368: 	ldrb r1, [r5], #1			; 	data[pos - offset + i]
-00:00008704 0110CBE4        	   369: 	strb r1, [r11], #1			; 	data[pos + i]
-00:00008708 010050E2        	   370: 	subs r0, r0, #1				;   i--
-00:0000870C FBFFFF1A        	   371: 	bne .2						; }
-                            	   372: 
-00:00008710 0150A0E3        	   373: 	mov r5, #1					; prev_was_ref = true;
-00:00008714 0C0000EA        	   374: 	b LZDecode_kind
-                            	   375: 
-                            	   376: LZDecode_literal:				; } else {
-00:00008718 04B02DE5        	   377: 	str r11, [sp, #-4]!			;   <=REGISTER PRESSURE!
-00:0000871C 015007E2        	   378: 	and r5, r7, #PARITY_MASK	;   int parity = pos & parity_mask;
-00:00008720 0110A0E3        	   379: 	mov r1, #1					;   int context = 1;
-00:00008724 07B0A0E3        	   380: 	mov r11, #7					;   for (int i = 7 ; i >= 0 ; i--) {
-                            	   381: .1:
-00:00008728 050481E1        	   382: 	orr r0, r1, r5, lsl #8		;     (parity << 8) | context
-00:0000872C D2FFFFEB        	   383: 	bl decode					;     int bit = decode((parity << 8) | context);
-00:00008730 811080E1        	   384: 	orr r1, r0, r1, lsl #1		;     context = (context << 1) | bit;
-00:00008734 01B05BE2        	   385: 	subs r11, r11, #1			;     i--
-00:00008738 FAFFFF5A        	   386: 	bpl .1						;   }
-                            	   387: 
-00:0000873C 04B09DE4        	   388: 	ldr r11, [sp], #4			;   <=REGISTER PRESSURE!
-00:00008740 0110CBE4        	   389: 	strb r1, [r11], #1			;   *pDest++ = lit;
-00:00008744 017087E2        	   390: 	add r7, r7, #1				;   pos += 1;
-00:00008748 0050A0E3        	   391: 	mov r5, #0					;   prev_was_ref = false;
-                            	   392: 								; }
-                            	   393: LZDecode_kind:
-00:0000874C 010007E2        	   394: 	and r0, r7, #PARITY_MASK	; int parity = pos & parity_mask;
-00:00008750 0004A0E1        	   395: 	mov r0, r0, lsl #8
-00:00008754 000080E2        	   396: 	add r0, r0, #CONTEXT_KIND
-00:00008758 C7FFFFEB        	   397: 	bl decode					; decode(LZEncoder::CONTEXT_KIND + (parity << 8));
-00:0000875C 0010A0E1        	   398: 	mov r1, r0					; ref = decode(...)
-00:00008760 D5FFFFEA        	   399: 	b LZDecode_loop
-                            	   400: 
-                            	   401: LZDecode_break:
-00:00008764 04F09DE4        	   402: 	ldr pc, [sp], #4			; return true
+00:000086C4 0000A0E3        	   343: 	mov r0, #0					; bool repeated = false;
+00:000086C8 000055E3        	   344: 	cmp r5, #0					; if (!prev_was_ref) {
+00:000086CC 0000E003        	   345: 	moveq r0, #CONTEXT_REPEATED ;
+00:000086D0 E9FFFF0B        	   346: 	bleq decode					;   repeated = decode(LZEncoder::CONTEXT_REPEATED);
+                            	   347: 								; }
+00:000086D4 000050E3        	   348: 	cmp r0, #0					; if (!repeated) {
+00:000086D8 0400001A        	   349: 	bne .1						;
+00:000086DC 0200A0E3        	   350: 	mov r0, #CONTEXT_GROUP_OFFSET
+00:000086E0 EAFFFFEB        	   351: 	bl decodeNumber				;   offset = decodeNumber(LZEncoder::CONTEXT_GROUP_OFFSET)
+00:000086E4 028040E2        	   352: 	sub r8, r0, #2				;	       - 2;
+00:000086E8 000058E3        	   353: 	cmp r8, #0					;
+00:000086EC 1C00000A        	   354: 	beq LZDecode_break			;   if (offset == 0) break;
+                            	   355: .1:								; }
+00:000086F0 0300A0E3        	   356: 	mov r0, #CONTEXT_GROUP_LENGTH
+00:000086F4 E5FFFFEB        	   357: 	bl decodeNumber				; int length = decodeNumber(LZEncoder::CONTEXT_GROUP_LENGTH);
+                            	   358: 
+00:000086F8 007087E0        	   359: 	add r7, r7, r0				; pos += length;
+                            	   360: 
+                            	   361: 	; Copied from Verifier::receiveReference(offset, length)
+00:000086FC 08504BE0        	   362: 	sub r5, r11, r8				; pos - offset
+                            	   363: .2:								; for (int i = 0 ; i < length ; i++) {
+00:00008700 0110D5E4        	   364: 	ldrb r1, [r5], #1			; 	data[pos - offset + i]
+00:00008704 0110CBE4        	   365: 	strb r1, [r11], #1			; 	data[pos + i]
+00:00008708 010050E2        	   366: 	subs r0, r0, #1				;   i--
+00:0000870C FBFFFF1A        	   367: 	bne .2						; }
+                            	   368: 
+00:00008710 0150A0E3        	   369: 	mov r5, #1					; prev_was_ref = true;
+00:00008714 0C0000EA        	   370: 	b LZDecode_kind
+                            	   371: 
+                            	   372: LZDecode_literal:				; } else {
+00:00008718 04B02DE5        	   373: 	str r11, [sp, #-4]!			;   <=REGISTER PRESSURE!
+00:0000871C 015007E2        	   374: 	and r5, r7, #PARITY_MASK	;   int parity = pos & parity_mask;
+00:00008720 0110A0E3        	   375: 	mov r1, #1					;   int context = 1;
+00:00008724 07B0A0E3        	   376: 	mov r11, #7					;   for (int i = 7 ; i >= 0 ; i--) {
+                            	   377: .1:
+00:00008728 050481E1        	   378: 	orr r0, r1, r5, lsl #8		;     (parity << 8) | context
+00:0000872C D2FFFFEB        	   379: 	bl decode					;     int bit = decode((parity << 8) | context);
+00:00008730 811080E1        	   380: 	orr r1, r0, r1, lsl #1		;     context = (context << 1) | bit;
+00:00008734 01B05BE2        	   381: 	subs r11, r11, #1			;     i--
+00:00008738 FAFFFF5A        	   382: 	bpl .1						;   }
+                            	   383: 
+00:0000873C 04B09DE4        	   384: 	ldr r11, [sp], #4			;   <=REGISTER PRESSURE!
+00:00008740 0110CBE4        	   385: 	strb r1, [r11], #1			;   *pDest++ = lit;
+00:00008744 017087E2        	   386: 	add r7, r7, #1				;   pos += 1;
+00:00008748 0050A0E3        	   387: 	mov r5, #0					;   prev_was_ref = false;
+                            	   388: 								; }
+                            	   389: LZDecode_kind:
+00:0000874C 010007E2        	   390: 	and r0, r7, #PARITY_MASK	; int parity = pos & parity_mask;
+00:00008750 0004A0E1        	   391: 	mov r0, r0, lsl #8
+00:00008754 000080E2        	   392: 	add r0, r0, #CONTEXT_KIND
+00:00008758 C7FFFFEB        	   393: 	bl decode					; decode(LZEncoder::CONTEXT_KIND + (parity << 8));
+00:0000875C 0010A0E1        	   394: 	mov r1, r0					; ref = decode(...)
+00:00008760 D5FFFFEA        	   395: 	b LZDecode_loop
+                            	   396: 
+                            	   397: LZDecode_break:
+00:00008764 04F09DE4        	   398: 	ldr pc, [sp], #4			; return true
+                            	   399: 
+                            	   400: ; ============================================================================
+                            	   401: ; Data
+                            	   402: ; ============================================================================
                             	   403: 
-                            	   404: ; ============================================================================
-                            	   405: ; Data
-                            	   406: ; ============================================================================
-                            	   407: 
-                            	   408: context:
-00:00008768 00              	   409: .skip NUM_CONTEXTS*4
+                            	   404: context:
+00:00008768 00              	   405: .skip NUM_CONTEXTS*4
 00:00008769 *
-                            	   410: 
-                            	   411: compressed_data:
-00:00009F68 DF60C71772239000	   412: .incbin "test.shr"
+                            	   406: 
+                            	   407: compressed_data:
+00:00009F68 DF60C71772239000	   408: .incbin "build/test.shr"
 00:00009F70 1F81D71095229187
 00:00009F78 FC9DF7E140B1757B
 00:00009F80 00896396B6E0F7EA
@@ -2953,13 +2949,11 @@ Source: "main.asm"
 00:0000EAE8 DD9003E031F7EC4C
 00:0000EAF0 03766C4721E407C5
 00:0000EAF8 66BEB41D10EA80
-                            	   413: compressed_end:
-                            	   414: .align 4
-                            	   415: 
-                            	   416: decompressed_data:
-00:0000EB00 00              	   417: .skip 65536
-00:0000EB01 *
-                            	   418: 
+                            	   409: compressed_end:
+                            	   410: .align 4
+                            	   411: 
+                            	   412: decompressed_data:
+                            	   413: 
 
 
 Symbols by name:
