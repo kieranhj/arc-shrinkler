@@ -36,7 +36,7 @@
 ; R4  = unsigned uncertainty    (RangeDecoder)
 ; R5  = bool prev_was_ref       (LZDecode)
 ; R6  = bit_index			    (RangeDecoder)
-; R7  = int pos                 (LZDecode)
+; R7  = temp
 ; R8  = int offset              (LZDecode)
 ; R9  = context				    (global)
 ; R10 = source				    (global)
@@ -109,14 +109,14 @@ RangeDecodeBit:
 	cmp r2, r8					; if (intervalvalue >= threshold)
 	blt One
 	; Zero						; {
-	sub r2, r2, r8				; intervalvalue -= threshold;
-	sub r3, r3, r8				; intervalsize -= threshold;
+	sub r2, r2, r8				;   intervalvalue -= threshold;
+	sub r3, r3, r8				;   intervalsize -= threshold;
 	sub r7, r1, r1, lsr #ADJUST_SHIFT	; new_prob = prob - (prob >> ADJUST_SHIFT);	
 
 	.if _DEBUG
-	cmp r7, #0					; assert(new_prob > 0);
+	cmp r7, #0					;   assert(new_prob > 0);
 	bmi .5
-	cmp r7, #0x10000			; assert(new_prob < 0x10000);
+	cmp r7, #0x10000			;   assert(new_prob < 0x10000);
 	blt .6
 	.5:
 	adr r0, assert3
@@ -124,29 +124,29 @@ RangeDecodeBit:
 	.6:
 	.endif
 
-	str r7, [r9, r0, lsl #2]	; contexts[context_index] = new_prob;
-	mov r0, #0					; bit = 0;
-	ldmfd sp!, {r1, r5, r7, lr}	; return bit
-	mov pc, lr
+	str r7, [r9, r0, lsl #2]	;   contexts[context_index] = new_prob;
+	mov r0, #0					;   bit = 0;
+	ldmfd sp!, {r1, r5, r7, lr}	;   return bit
+	mov pc, lr                  ; }
 
-One:
+One:                            ; else {
 	.if _DEBUG
 	add r7, r2, r4
-	cmp r7, r8					; assert(intervalvalue + uncertainty <= threshold);
+	cmp r7, r8					;   assert(intervalvalue + uncertainty <= threshold);
 	ble .1
 	adr r0, assert2
 	swi OS_GenerateError
 	.1:
 	.endif
 
-	mov r3, r8					; intervalsize = threshold;
+	mov r3, r8					;   intervalsize = threshold;
 	add r7, r1, #0xffff >> ADJUST_SHIFT	; new_prob = prob + (0xffff >> ADJUST_SHIFT) 
 	sub r7, r7, r1, lsr #ADJUST_SHIFT	;          - (prob >> ADJUST_SHIFT);
 
 	.if _DEBUG
-	cmp r7, #0					; assert(new_prob > 0);
+	cmp r7, #0					;   assert(new_prob > 0);
 	bmi .4 
-	cmp r7, #0x10000			; assert(new_prob < 0x10000);
+	cmp r7, #0x10000			;   assert(new_prob < 0x10000);
 	blt .3
 	.4:
 	adr r0, assert3
@@ -154,10 +154,10 @@ One:
 	.3:
 	.endif
 
-	str r7, [r9, r0, lsl #2]	; contexts[context_index] = new_prob;
-	mov r0, #1					; bit = 1;
-	ldmfd sp!, {r1, r5, r7, lr}	; return bit
-	mov pc, lr
+	str r7, [r9, r0, lsl #2]	;   contexts[context_index] = new_prob;
+	mov r0, #1					;   bit = 1;
+	ldmfd sp!, {r1, r5, r7, lr}	;   return bit
+	mov pc, lr                  ; }
 
 .if _DEBUG
 assert1: ;The error block
@@ -238,10 +238,10 @@ RangeDecodeNumber:
 ; Returns R0 = RangeDecoder::decode(NUM_SINGLE_CONTEXTS + context)
 ; ============================================================================
 decode:
-	stmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+	stmfd sp!, {r1,r5,r8, lr}	; <=REGISTER PRESSURE!
 	add r0, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + context
 	bl RangeDecodeBit				; decode(...)
-	ldmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+	ldmfd sp!, {r1,r5,r8, lr}	; <=REGISTER PRESSURE!
 	mov pc, lr
 
 
@@ -251,11 +251,11 @@ decode:
 ; Returns R0 = RangeDecoder::decodeNumber(NUM_SINGLE_CONTEXTS + (context_group << 8))
 ; ============================================================================
 decodeNumber:
-	stmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+	stmfd sp!, {r1,r5,r8, lr}	; <=REGISTER PRESSURE!
 	mov r0, r0, lsl #8
 	add r0, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + (context_group << 8));
 	bl RangeDecodeNumber			; decodeNumber(...)
-	ldmfd sp!, {r1,r5,r7,r8, lr}	; <=REGISTER PRESSURE!
+	ldmfd sp!, {r1,r5,r8, lr}	; <=REGISTER PRESSURE!
 	mov pc, lr
 
 
@@ -269,47 +269,14 @@ decodeNumber:
 ; ============================================================================
 LZDecode:
 	str lr, [sp, #-4]!
-	mov r1, #0					; bool ref = false;
-	mov r5, #0					; bool prev_was_ref = false;
-	mov r7, #0					; int pos = 0;
+	mov r1, #0					; temp but needed in local context.
+	mov r5, #0					; temp but needed in local context.
 	mov r8, #0					; int offset = 0;
 
-LZDecode_loop:					; do {
-	cmp r1, #0					; if (ref) {
-	beq LZDecode_literal
-
-	mov r0, #0					; bool repeated = false;
-	cmp r5, #0					; if (!prev_was_ref) {
-	moveq r0, #CONTEXT_REPEATED ;
-	bleq decode					;   repeated = decode(LZEncoder::CONTEXT_REPEATED);
-								; }
-	cmp r0, #0					; if (!repeated) {
-	bne .1						;
-	mov r0, #CONTEXT_GROUP_OFFSET
-	bl decodeNumber				;   offset = decodeNumber(LZEncoder::CONTEXT_GROUP_OFFSET)
-	sub r8, r0, #2				;	       - 2;
-	cmp r8, #0					;
-	beq LZDecode_break			;   if (offset == 0) break;
-.1:								; }
-	mov r0, #CONTEXT_GROUP_LENGTH
-	bl decodeNumber				; int length = decodeNumber(LZEncoder::CONTEXT_GROUP_LENGTH);
-
-	add r7, r7, r0				; pos += length;
-
-	; Copied from Verifier::receiveReference(offset, length)
-	sub r5, r11, r8				; pos - offset
-.2:								; for (int i = 0 ; i < length ; i++) {
-	ldrb r1, [r5], #1			; 	data[pos - offset + i]
-	strb r1, [r11], #1			; 	data[pos + i]
-	subs r0, r0, #1				;   i--
-	bne .2						; }
-
-	mov r5, #1					; prev_was_ref = true;
-	b LZDecode_kind
-
+    ; bool ref = false
 LZDecode_literal:				; } else {
 	str r11, [sp, #-4]!			;   <=REGISTER PRESSURE!
-	and r5, r7, #PARITY_MASK	;   int parity = pos & parity_mask;
+	and r5, r11, #PARITY_MASK	;   int parity = pos & parity_mask;
 	mov r1, #1					;   int context = 1;
 	mov r11, #7					;   for (int i = 7 ; i >= 0 ; i--) {
 .1:
@@ -321,16 +288,55 @@ LZDecode_literal:				; } else {
 
 	ldr r11, [sp], #4			;   <=REGISTER PRESSURE!
 	strb r1, [r11], #1			;   *pDest++ = lit;
-	add r7, r7, #1				;   pos += 1;
-	mov r5, #0					;   prev_was_ref = false;
-								; }
-LZDecode_kind:
-	and r0, r7, #PARITY_MASK	; int parity = pos & parity_mask;
+                                ; }
+    ; TODO: ReportProgress callback.
+    ; After literal.
+    ; GetKind:
+	and r0, r11, #PARITY_MASK	; int parity = pos & parity_mask;
 	mov r0, r0, lsl #8
 	add r0, r0, #CONTEXT_KIND
-	bl decode					; decode(LZEncoder::CONTEXT_KIND + (parity << 8));
-	mov r1, r0					; ref = decode(...)
-	b LZDecode_loop
+	bl decode					; ref = decode(LZEncoder::CONTEXT_KIND + (parity << 8));
+    ; R0=ref
+    cmp r0, #0
+    beq LZDecode_literal
 
-LZDecode_break:
+LZDecode_reference:
+    ; bool ref = true;
+    ; bool prev_was_ref = false;
+
+	mov r0, #CONTEXT_REPEATED
+	bl decode					; repeated = decode(LZEncoder::CONTEXT_REPEATED);
+	cmp r0, #0					; if (!repeated) {
+	beq LZDecode_readoffset
+
+LZDecode_readlength:
+	mov r0, #CONTEXT_GROUP_LENGTH
+	bl decodeNumber				; int length = decodeNumber(LZEncoder::CONTEXT_GROUP_LENGTH);
+
+	; Copied from Verifier::receiveReference(offset, length)
+	sub r5, r11, r8				; pos - offset
+LZDecode_copyloop:				; for (int i = 0 ; i < length ; i++) {
+	ldrb r1, [r5], #1			; 	data[pos - offset + i]
+	strb r1, [r11], #1			; 	data[pos + i]
+	subs r0, r0, #1				;   i--
+	bne LZDecode_copyloop		; }
+
+    ; After reference.
+    ; GetKind:
+	and r0, r11, #PARITY_MASK	; int parity = pos & parity_mask;
+	mov r0, r0, lsl #8
+	add r0, r0, #CONTEXT_KIND
+	bl decode					; ref = decode(LZEncoder::CONTEXT_KIND + (parity << 8));
+    ; R0=ref
+    cmp r0, #0
+    beq LZDecode_literal
+
+    ; bool ref = true;
+    ; bool prev_was_ref = true;
+LZDecode_readoffset:
+	mov r0, #CONTEXT_GROUP_OFFSET
+	bl decodeNumber				;   offset = decodeNumber(LZEncoder::CONTEXT_GROUP_OFFSET)
+	sub r0, r0, #2				;	       - 2;
+	cmp r0, #0					;
+	bne LZDecode_readlength 	;   if (offset == 0) break;
 	ldr pc, [sp], #4			; return true

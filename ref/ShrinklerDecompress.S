@@ -40,7 +40,7 @@ ShrinklerDecompress:
 	move.l	a1,a6					; pOutBase = decompressed dest base.
 
 	; Init range decoder state
-	moveq.l	#0,d2					; range_value=0
+	moveq.l	#0,d2					; interval_value=0
 	moveq.l	#1,d3					; interval_size=1
 	moveq.l	#1,d4					; bit_buffer=1
 	ror.l	#1,d4					; bit_buffer=bit_buffer (ror) 1 => makes C=1
@@ -53,18 +53,20 @@ ShrinklerDecompress:
 	bne.b	.init					; if bit_context!=0 goto .init
 
 	; D6 = 0
+	; bool ref = false => start with literal.
 .lit:
 	; Literal
 	addq.b	#1,d6					; bit_context++ [BYTE]
 .getlit:
 	bsr.b	GetBit					; [C, X]=GetBit()
-	addx.b	d6,d6					; bit_context+=bit_context+X (X=0 or 1 from GetBit)
+	addx.b	d6,d6					; bit_context=(bit_context << 1) | X
 	bcc.b	.getlit					; if C=0 goto .getlit
 	move.b	d6,(a5)+				; *pOut++ = bit_context [BYTE]
 	bsr.b	ReportProgress			; ReportProgress()
 .switch:
 	; After literal
 	bsr.b	GetKind					; [C, X]=GetKind()
+; => Note that C=bool ref (0=lit, 1=reference).
 	bcc.b	.lit					; if C=0 goto .lit
 	; Reference
 	moveq.l	#-1,d6					; bit_context=-1
@@ -80,12 +82,13 @@ ShrinklerDecompress:
 	bsr.b	ReportProgress			; ReportProgres()
 	; After reference
 	bsr.b	GetKind					; [C, X]=GetKind()
+; => Note that C=bool ref (0=lit, 1=reference).
 	bcc.b	.lit					; if C=0 goto .lit
 .readoffset:
-	moveq.l	#3,d6					; number_context=3
-	bsr.b	GetNumber				; d0=GetNumber(number_context)	; NUMBER CONTEXT
+	moveq.l	#3,d6					; number_context=3 (CONTEXT_GROUP_OFFSET)
+	bsr.b	GetNumber				; d0=GetNumber(number_context)
 	moveq.l	#2,d5					; d5=2
-	sub.l	d0,d5					; d5-=d0
+	sub.l	d0,d5					; d5=2-d0 = -offset
 	bne.b	.readlength				; if d5 !=0 goto .readlength
 
 	; Pops 1536 items off the stack by reseting the stack ptr.
@@ -111,6 +114,7 @@ GetKind:
 	and.l	d7,d6					; bit_context=pOut & parity_context
 	lsl.w	#8,d6					; bit_context=bit_context<<8
 	bra.b	GetBit					; goto GetBit
+; => Note that C=bool ref (0=lit, 1=reference).
 ; => Note that d7 is constant so can be assembled in and freed.
 
 GetNumber:
@@ -126,7 +130,7 @@ GetNumber:
 	subq.b	#1,d6					; number_context-=1 [BYTE]
 .bitsloop:
 	bsr.b	GetBit					; [C, X]=GetBit()
-	addx.l	d0,d0					; d0+=d0+X
+	addx.l	d0,d0					; d0=(d0 << 1) | X
 	subq.b	#2,d6					; number_context-=2
 	bcc.b	.bitsloop				; if C=0 goto .bitsloop
 	rts
@@ -140,13 +144,13 @@ GetNumber:
 	; Out: Bit in C and X
 
 readbit:
-	add.l	d4,d4					; bit_buffer+=bit_buffer
+	add.l	d4,d4					; bit_buffer=bit_buffer << 1
 	bne.b	nonewword				; if bit_buffer!=0 goto nonewword
 	move.l	(a4)+,d4				; bit_buffer=*pIn++ [LONG]
-	addx.l	d4,d4					; bit_buffer+=bit_buffer+X
+	addx.l	d4,d4					; bit_buffer=(bit_buffer << 1) | X
 nonewword:
-	addx.w	d2,d2					; range_value+=range_value+X
-	add.w	d3,d3					; interval_size+=interval_size
+	addx.w	d2,d2					; interval_value=(interval_value << 1) | X
+	add.w	d3,d3					; interval_size=interval_size << 1
 GetBit:
 	tst.w	d3						; [clear C, preserve X?]
 	bpl.b	readbit					; if interval_size>0 goto readbit
@@ -155,27 +159,29 @@ GetBit:
 	add.l	d6,a1					; a1+=bit_context (=pContext)
 	; Looking up one of the contexts from the stack.
 	; d1=pStack[4+SINGLE_BIT_CONTEXT*2+bit_context*2]
-	move.w	(a1),d1					; adjust=*pStackContext	[WORD]
+	move.w	(a1),d1					; prob=*pStackContext	[WORD]
 	; D1 = One prob
 
-	lsr.w	#ADJUST_SHIFT,d1		; adjust>>=ADJUST_SHIFT
-	sub.w	d1,(a1)					; *pContext-=adjust
-	add.w	(a1),d1					; adjust+=*pContext
+	lsr.w	#ADJUST_SHIFT,d1		; prob=prob>>ADJUST_SHIFT
+	sub.w	d1,(a1)					; *pContext-=prob
+	add.w	(a1),d1					; prob+=*pContext
 
-	mulu.w	d3,d1					; adjust*=interval_size
-	swap.w	d1						; adjust=adjust>>16
+	mulu.w	d3,d1					; threshold=interval_size*prob
+	swap.w	d1						; threshold=threshold>>16
 
-	sub.w	d1,d2					; range_value-=adjust
+	sub.w	d1,d2					; interval_value-=threshold
 	blo.b	.one					; if C=1 goto .one
 .zero:
+	; new_prob = prob - (prob >> ADJUST_SHIFT);	
 	; oneprob = oneprob * (1 - adjust) = oneprob - oneprob * adjust
 	sub.w	d1,d3					; interval_size-=adjust
 	; 0 in C and X
 	rts
 .one:
+	; new_prob = prob + (0xffff >> ADJUST_SHIFT) - (prob >> ADJUST_SHIFT);
 	; oneprob = 1 - (1 - oneprob) * (1 - adjust) = oneprob - oneprob * adjust + adjust
 	add.w	#$ffff>>ADJUST_SHIFT,(a1)	; *pContext+=0xffff>>ADJUST_SHIFT
 	move.w	d1,d3					; interval_size=adjust [WORD]
-	add.w	d1,d2					; range_value+=adjust [WORD]
+	add.w	d1,d2					; interval_value+=adjust [WORD]
 	; 1 in C and X
 	rts
