@@ -29,19 +29,19 @@
 ; ARM Register Usage.
 ; ============================================================================
 
-; R0  = temp / parameter / return value
-; R1  = bool ref                (LZDecode)
+; R0  = parameter / return value
+; R1  = temp                    (preserve)
 ; R2  = unsigned intervalvalue 	(RangeDecoder)
 ; R3  = unsigned intervalsize	(RangeDecoder)
-; R4  = unsigned uncertainty    (RangeDecoder)
-; R5  = bool prev_was_ref       (LZDecode)
-; R6  = temp
-; R7  = temp
+; R4  = unused
+; R5  = temp                    (preserve)
+; R6  = unused
+; R7  = temp                    (preserve)
 ; R8  = int offset              (LZDecode)
 ; R9  = context				    (global)
 ; R10 = source				    (global)
 ; R11 = dest				    (global)
-; R12 = bit_buffer			    (global)
+; R12 = bit_buffer			    (RangeDecoder)
 
 ; ============================================================================
 ; Implements RangeDecoder::getBit().
@@ -129,15 +129,6 @@ RangeDecodeBit:
 	mov pc, lr                  ; }
 
 One:                            ; else {
-	.if _DEBUG
-	add r7, r2, r4
-	cmp r7, r8					;   assert(intervalvalue + uncertainty <= threshold);
-	ble .1
-	adr r0, assert2
-	swi OS_GenerateError
-	.1:
-	.endif
-
 	mov r3, r8					;   intervalsize = threshold;
 	add r7, r1, #0xffff >> ADJUST_SHIFT	; new_prob = prob + (0xffff >> ADJUST_SHIFT) 
 	sub r7, r7, r1, lsr #ADJUST_SHIFT	;          - (prob >> ADJUST_SHIFT);
@@ -165,12 +156,6 @@ assert1: ;The error block
 	.align 4
 	.long 0
 
-assert2: ;The error block
-    .long 18
-	.byte "assert(intervalvalue + uncertainty <= threshold); FAILED"
-	.align 4
-	.long 0
-
 assert3: ;The error block
     .long 18
 	.byte "assert(new_prob > 0 && new_prob < 0x10000); FAILED"
@@ -186,7 +171,6 @@ assert3: ;The error block
 RangeInit:
 	mov r3, #1					; intervalsize = 1;
 	mov r2, #0					; intervalvalue = 0;
-	mov r4, #1					; uncertainty = 1;
 
 	mov r1, #INIT_ONE_PROB
 	mov r0, #NUM_CONTEXTS-1

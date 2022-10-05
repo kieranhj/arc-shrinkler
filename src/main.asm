@@ -40,6 +40,15 @@ main:
 	;mov r3, #0
 	;bl ShrinklerDecompress
 
+	; Wipe decompressed area so we're not fooled!
+	adr r11, decompressed_data
+	mov r0, #0
+	mov r1, #63336
+	.1:
+	str r0, [r11], #4
+	subs r1, r1, #1
+	bne .1
+
 	adr r9, context
 	bl RangeInit
 	adr r10, compressed_data
