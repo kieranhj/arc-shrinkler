@@ -33,9 +33,9 @@
 ; R1  = temp                    (preserve)
 ; R2  = unsigned intervalvalue 	(RangeDecoder)
 ; R3  = unsigned intervalsize	(RangeDecoder)
-; R4  = unused
+; R4  = temp                    (local)
 ; R5  = temp                    (preserve)
-; R6  = unused
+; R6  = temp                    (local)
 ; R7  = temp                    (preserve)
 ; R8  = int offset              (LZDecode)
 ; R9  = context				    (global)
@@ -52,7 +52,7 @@
 ; Returns R0 = bit
 ; ============================================================================
 RangeDecodeBit:
-	stmfd sp!, {r1, r5, r7, lr}	; <= REGISTER PRESSURE!
+	stmfd sp!, {r1, r7, lr}	; <= REGISTER PRESSURE!
 
 	.if _DEBUG
 	cmp r0, #0					; assert(context_index < contexts.size());
@@ -65,7 +65,7 @@ RangeDecodeBit:
 	.3:
 	.endif
 
-	str r0, [sp, #-4]!			; <= REGISTER PRESSURE!
+	mov r6, r0                  ; context_index
 .1:
 	cmp r3, #0x8000				; while (intervalsize < 0x8000) {
 	bge .2
@@ -93,20 +93,20 @@ RangeDecodeBit:
 	orr r2, r0, r2, lsl #1		; 	intervalvalue = (intervalvalue << 1) | getBit();
 	b .1						; }
 .2:
-	ldr r0, [sp], #4			; <= REGISTER PRESSURE!
-	ldr r1, [r9, r0, lsl #2]	; unsigned prob = contexts[context_index];
 
-	; R0 =	int bit;
-	; R7 =	unsigned new_prob;
-	; R8 =	unsigned threshold
-	mul r8, r3, r1				; unsigned threshold = (intervalsize * prob) >> 16;
-	mov r8, r8, lsr #16			
+	ldr r1, [r9, r6, lsl #2]	; unsigned prob = contexts[context_index];
 
-	cmp r2, r8					; if (intervalvalue >= threshold)
+	; R4 =	unsigned threshold
+	mul r4, r3, r1				; unsigned threshold = (intervalsize * prob) >> 16;
+	mov r4, r4, lsr #16			
+
+	cmp r2, r4					; if (intervalvalue >= threshold)
 	blt One
 	; Zero						; {
-	sub r2, r2, r8				;   intervalvalue -= threshold;
-	sub r3, r3, r8				;   intervalsize -= threshold;
+	sub r2, r2, r4				;   intervalvalue -= threshold;
+	sub r3, r3, r4				;   intervalsize -= threshold;
+
+	; R7 =	unsigned new_prob;
 	sub r7, r1, r1, lsr #ADJUST_SHIFT	; new_prob = prob - (prob >> ADJUST_SHIFT);	
 
 	.if _DEBUG
@@ -120,13 +120,13 @@ RangeDecodeBit:
 	.6:
 	.endif
 
-	str r7, [r9, r0, lsl #2]	;   contexts[context_index] = new_prob;
+	str r7, [r9, r6, lsl #2]	;   contexts[context_index] = new_prob;
 	mov r0, #0					;   bit = 0;
-	ldmfd sp!, {r1, r5, r7, lr}	;   return bit
+	ldmfd sp!, {r1, r7, lr}	;   return bit
 	mov pc, lr                  ; }
 
 One:                            ; else {
-	mov r3, r8					;   intervalsize = threshold;
+	mov r3, r4					;   intervalsize = threshold;
 	add r7, r1, #0xffff >> ADJUST_SHIFT	; new_prob = prob + (0xffff >> ADJUST_SHIFT) 
 	sub r7, r7, r1, lsr #ADJUST_SHIFT	;          - (prob >> ADJUST_SHIFT);
 
@@ -141,9 +141,9 @@ One:                            ; else {
 	.3:
 	.endif
 
-	str r7, [r9, r0, lsl #2]	;   contexts[context_index] = new_prob;
+	str r7, [r9, r6, lsl #2]	;   contexts[context_index] = new_prob;
 	mov r0, #1					;   bit = 1;
-	ldmfd sp!, {r1, r5, r7, lr}	;   return bit
+	ldmfd sp!, {r1, r7, lr}	;   return bit
 	mov pc, lr                  ; }
 
 .if _DEBUG
@@ -200,10 +200,10 @@ RangeDecodeNumber:
 ; Returns R0 = RangeDecoder::decode(NUM_SINGLE_CONTEXTS + context)
 ; ============================================================================
 decode:
-	stmfd sp!, {r1,r5,r8, lr}	; <=REGISTER PRESSURE!
+	stmfd sp!, {r1,r5, lr}	; <=REGISTER PRESSURE!
 	add r0, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + context
 	bl RangeDecodeBit				; decode(...)
-	ldmfd sp!, {r1,r5,r8, lr}	; <=REGISTER PRESSURE!
+	ldmfd sp!, {r1,r5, lr}	; <=REGISTER PRESSURE!
 	mov pc, lr
 
 
@@ -230,8 +230,8 @@ decodeNumber:
 ; ============================================================================
 LZDecode:
 	str lr, [sp, #-4]!
-	mov r3, #1					; intervalsize = 1;
 	mov r2, #0					; intervalvalue = 0;
+	mov r3, #1					; intervalsize = 1;
 	mov r8, #0					; int offset = 0;
     mov r12, #0x80000000        ; bit_buffer = 0x80000000
 
@@ -284,9 +284,9 @@ LZDecode_readlength:
 	bl decodeNumber				; int length = decodeNumber(LZEncoder::CONTEXT_GROUP_LENGTH);
 
 	; Copied from Verifier::receiveReference(offset, length)
-	sub r5, r11, r8				; pos - offset
+	sub r4, r11, r8				; pos - offset
 LZDecode_copyloop:				; for (int i = 0 ; i < length ; i++) {
-	ldrb r1, [r5], #1			; 	data[pos - offset + i]
+	ldrb r1, [r4], #1			; 	data[pos - offset + i]
 	strb r1, [r11], #1			; 	data[pos + i]
 	subs r0, r0, #1				;   i--
 	bne LZDecode_copyloop		; }
