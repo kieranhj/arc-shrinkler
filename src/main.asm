@@ -44,7 +44,7 @@ main:
 	bl RangeInit
 	adr r10, compressed_data
 	adr r11, decompressed_data
-	adr r12, compressed_end
+	ldr r12, compressed_end
 	sub r12, r12, r10			; data_size
 	bl LZDecode
 
@@ -401,12 +401,15 @@ LZDecode_break:
 ; Data
 ; ============================================================================
 
+compressed_end:
+	.long compressed_data_end
+
 context:
 .skip NUM_CONTEXTS*4
 
 compressed_data:
-.incbin "build/test.shr"
-compressed_end:
+.incbin "build/waytoorude.shr"
+compressed_data_end:
 .align 4
 
 decompressed_data:

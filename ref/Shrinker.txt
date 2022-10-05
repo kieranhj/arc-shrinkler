@@ -1,0 +1,12 @@
+Shrinkler Decompressor.
+Acorn Archimedes ARM port.
+~~~
+1. Make it correct.
+2. Make it fast. :)
+
+TODO:
+~~~
+- Look at 68K implementation for ideas on how to optimise.
+- Remove need to look up every single byte.
+- Reduce register pressure.
+- Inline funtions.
