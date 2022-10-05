@@ -11,8 +11,6 @@
 ; 2022 Kieran Connell.
 ; ============================================================================
 
-.equ _ENABLE_BIT_BUFFER, 0
-
 .equ INIT_ONE_PROB, 0x8000
 .equ ADJUST_SHIFT, 4
 .equ SINGLE_BIT_CONTEXTS, 1
@@ -37,54 +35,36 @@
 ; R3  = unsigned intervalsize	(RangeDecoder)
 ; R4  = unsigned uncertainty    (RangeDecoder)
 ; R5  = bool prev_was_ref       (LZDecode)
-; R6  = bit_index			    (RangeDecoder)
+; R6  = temp
 ; R7  = temp
 ; R8  = int offset              (LZDecode)
 ; R9  = context				    (global)
 ; R10 = source				    (global)
 ; R11 = dest				    (global)
-; R12 = data_size			    (global)
+; R12 = bit_buffer			    (global)
 
 ; ============================================================================
 ; Implements RangeDecoder::getBit().
 ; Returns R0 = bit.
 ; ============================================================================
 GetBit:
-.if _ENABLE_BIT_BUFFER == 0
-	; R1 = bit_in_byte
-	mvn r1, r6					; (~bit_index)
-	and r1, r1, #7				; int bit_in_byte = (~bit_index) & 7;
-
-	cmp r6, r12, lsl #3			; if (bit_index++ >= data.size() * 8) {
-	blt .1
-	add r6, r6, #1				; bit_index++
-	mov r4, r4, lsl #1			; uncertainty <<= 1;
-	mov r0, #0					; return 0;
-	mov pc, lr
-.1:
-	; TODO: Don't read byte every time!
-	ldrb r0, [r10, r6, lsr #3]	; int bit = (data[byte_index]								
-	mov r0, r0, lsr r1			;            >> bit_in_byte)
-	and r0, r0, #1				; 			 & 1;
-	add r6, r6, #1				; bit_index++
-	mov pc, lr					; return bit
-.else
-
     movs r12, r12, lsl #1       ; bit_buffer=bit_buffer << 1, C=top bit.
     bne .1                      ; if bit_buffer!=0 goto nonewword
     ldr r12, [r10], #4          ; bit_buffer = *pCompressed++ [3210]
+    ; Argh! Endian swap word for ARM.
+    ; TODO: Add this as an additional option to Shrinkler compressor.
     mov r0, r12, lsr #24        ; [xxx3]
     orr r0, r0, r12, lsl #24    ; [0xx3]
     and r1, r12, #0x00ff0000
     orr r0, r0, r1, lsr #8      ; [0x23]
     and r1, r12, #0x0000ff00
     orr r12, r0, r1, lsl #8     ; [0123]
+    ;
     adcs r12, r12, r12          ; bit_buffer=(bit_buffer << 1) | C
 .1:                             ; nonewword:
     movcc r0, #0                ; bit = C
     movcs r0, #1                ; bit = C
     mov pc, lr                  ; return bit
-.endif
 
 ; ============================================================================
 ; Implements RangeDecoder::decode(int context_index).
@@ -204,7 +184,6 @@ assert3: ;The error block
 ; R9 = context buffer			(global)
 ; ============================================================================
 RangeInit:
-	mov r6, #0					; bit_index = 0;
 	mov r3, #1					; intervalsize = 1;
 	mov r2, #0					; intervalvalue = 0;
 	mov r4, #1					; uncertainty = 1;
@@ -284,15 +263,11 @@ decodeNumber:
 ; R9 = context				(global)
 ; R10 = source				(global)
 ; R11 = dest				(global)
-; R12 = data_size			(global)
 ; ============================================================================
 LZDecode:
 	str lr, [sp, #-4]!
 	mov r8, #0					; int offset = 0;
-
-    .if _ENABLE_BIT_BUFFER
     mov r12, #0x80000000        ; bit_buffer = 0x80000000
-    .endif
 
     ; bool ref = false
 LZDecode_literal:				; } else {

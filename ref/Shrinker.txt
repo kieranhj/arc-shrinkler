@@ -7,7 +7,7 @@ Acorn Archimedes ARM port.
 TODO:
 ~~~
 - Look at 68K implementation for ideas on how to optimise.
-- Remove need to look up every single byte.
+- Remove need to look up every single byte. - DONE w/ bit_buffer.
 - Reduce register pressure.
 - Inline funtions.
 - Proper Makefile.
