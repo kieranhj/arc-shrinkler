@@ -165,7 +165,7 @@ assert3: ;The error block
 ; ============================================================================
 RangeDecodeNumber:
 	str lr, [sp, #-4]!
-	mov r5, r0				; base_context
+	mov r5, r6				; base_context
 	mov r1, #0				; for (i = 0 ;; i++) {
 .1:
 	add r6, r5, r1, lsl #1	; 	context = base_context + (i * 2
@@ -190,27 +190,14 @@ RangeDecodeNumber:
 
 
 ; ============================================================================
-; Implements LZDecoder::decode(int context).
-; R0 = context
-; Returns R0 = RangeDecoder::decode(NUM_SINGLE_CONTEXTS + context)
-; ============================================================================
-decode:
-	stmfd sp!, {r1,r5, lr}	; <=REGISTER PRESSURE!
-	add r6, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + context
-	bl RangeDecodeBit				; decode(...)
-	ldmfd sp!, {r1,r5, lr}	; <=REGISTER PRESSURE!
-	mov pc, lr
-
-
-; ============================================================================
 ; Implements LZDecoder::decodeNumber(int context_group).
-; R0 = context_group
+; R6 = context_group
 ; Returns R0 = RangeDecoder::decodeNumber(NUM_SINGLE_CONTEXTS + (context_group << 8))
 ; ============================================================================
 decodeNumber:
 	stmfd sp!, {r1,r5, lr}	; <=REGISTER PRESSURE!
-	mov r0, r0, lsl #8
-	add r6, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + (context_group << 8));
+	mov r6, r6, lsl #8
+	add r6, r6, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + (context_group << 8));
 	bl RangeDecodeNumber			; decodeNumber(...)
 	ldmfd sp!, {r1,r5, lr}	; <=REGISTER PRESSURE!
 	mov pc, lr
@@ -227,6 +214,7 @@ LZDecode:
 	str lr, [sp, #-4]!
 	mov r2, #0					; intervalvalue = 0;
 	mov r3, #1					; intervalsize = 1;
+    mov r6, #0                  ; bit_context = 0;
 	mov r8, #0					; int offset = 0;
     mov r12, #0x80000000        ; bit_buffer = 0x80000000
 
@@ -239,28 +227,44 @@ LZDecode:
 	bpl .1
 
     ; bool ref = false
-LZDecode_literal:				; } else {
+    LZDecode_literal:				; } else {
+.if 1
 	str r11, [sp, #-4]!			;   <=REGISTER PRESSURE!
 	and r5, r11, #PARITY_MASK	;   int parity = pos & parity_mask;
 	mov r1, #1					;   int context = 1;
 	mov r11, #7					;   for (int i = 7 ; i >= 0 ; i--) {
 .1:
 	orr r0, r1, r5, lsl #8		;     (parity << 8) | context
-	bl decode					;     int bit = decode((parity << 8) | context);
+	add r6, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + context
+	bl RangeDecodeBit			;     int bit = decode((parity << 8) | context);decode(...)
 	orr r1, r0, r1, lsl #1		;     context = (context << 1) | bit;
 	subs r11, r11, #1			;     i--
 	bpl .1						;   }
-
 	ldr r11, [sp], #4			;   <=REGISTER PRESSURE!
 	strb r1, [r11], #1			;   *pDest++ = lit;
+.else
+    ; Presume this doesn't work because we need to factor in (or out)
+    ; NUM_SINGLE_CONTEXTS.
+    add r6, r6, #1              ;   bit_context++
+.1:
+    bl RangeDecodeBit           ;   int bit = decode((parity << 8) | context);
+
+    and r4, r6, #0xff00         ;   save parity_context.
+    bic r6, r6, #0xff00         ;   mask out parity_context.
+    orr r6, r0, r6, lsl #1      ;   context = (context << 1) | bit;
+    orr r6, r6, r4              ;   mask parity_context back in.
+    cmp r0, #0                  ;   
+    beq .1                      ;   if C=0 goto .getlit
+	strb r6, [r11], #1			;   *pDest++ = lit;
+.endif
                                 ; }
     ; TODO: ReportProgress callback.
     ; After literal.
     ; GetKind:
-	and r0, r11, #PARITY_MASK	; int parity = pos & parity_mask;
-	mov r0, r0, lsl #8
-	add r0, r0, #CONTEXT_KIND
-	bl decode					; ref = decode(LZEncoder::CONTEXT_KIND + (parity << 8));
+	and r6, r11, #PARITY_MASK	; int parity = pos & parity_mask;
+	mov r6, r6, lsl #8
+	add r6, r6, #CONTEXT_KIND + NUM_SINGLE_CONTEXTS
+	bl RangeDecodeBit			; ref = decode(LZEncoder::CONTEXT_KIND + (parity << 8));
     ; R0=ref
     cmp r0, #0
     beq LZDecode_literal
@@ -269,13 +273,13 @@ LZDecode_reference:
     ; bool ref = true;
     ; bool prev_was_ref = false;
 
-	mov r0, #CONTEXT_REPEATED
-	bl decode					; repeated = decode(LZEncoder::CONTEXT_REPEATED);
+    mov r6, #CONTEXT_REPEATED + NUM_SINGLE_CONTEXTS
+	bl RangeDecodeBit			; repeated = decode(LZEncoder::CONTEXT_REPEATED);
 	cmp r0, #0					; if (!repeated) {
 	beq LZDecode_readoffset
 
 LZDecode_readlength:
-	mov r0, #CONTEXT_GROUP_LENGTH
+	mov r6, #CONTEXT_GROUP_LENGTH
 	bl decodeNumber				; int length = decodeNumber(LZEncoder::CONTEXT_GROUP_LENGTH);
 
 	; Copied from Verifier::receiveReference(offset, length)
@@ -288,10 +292,10 @@ LZDecode_copyloop:				; for (int i = 0 ; i < length ; i++) {
 
     ; After reference.
     ; GetKind:
-	and r0, r11, #PARITY_MASK	; int parity = pos & parity_mask;
-	mov r0, r0, lsl #8
-	add r0, r0, #CONTEXT_KIND
-	bl decode					; ref = decode(LZEncoder::CONTEXT_KIND + (parity << 8));
+	and r6, r11, #PARITY_MASK	; int parity = pos & parity_mask;
+	mov r6, r6, lsl #8
+	add r6, r6, #CONTEXT_KIND + NUM_SINGLE_CONTEXTS
+	bl RangeDecodeBit			; ref = decode(LZEncoder::CONTEXT_KIND + (parity << 8));
     ; R0=ref
     cmp r0, #0
     beq LZDecode_literal
@@ -299,7 +303,7 @@ LZDecode_copyloop:				; for (int i = 0 ; i < length ; i++) {
     ; bool ref = true;
     ; bool prev_was_ref = true;
 LZDecode_readoffset:
-	mov r0, #CONTEXT_GROUP_OFFSET
+	mov r6, #CONTEXT_GROUP_OFFSET
 	bl decodeNumber				;   offset = decodeNumber(LZEncoder::CONTEXT_GROUP_OFFSET)
 	sub r8, r0, #2				;	       - 2;
 	cmp r8, #0					;
