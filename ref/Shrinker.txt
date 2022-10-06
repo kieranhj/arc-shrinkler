@@ -13,3 +13,4 @@ TODO:
 - Proper Makefile.
 - Implement callback fn.
 - Make it a Relocatable Module?
+- Add proper command-line option to Shrinkler.exe for endian swap word output.

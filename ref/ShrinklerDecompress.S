@@ -162,9 +162,9 @@ GetBit:
 	move.w	(a1),d1					; prob=*pStackContext	[WORD]
 	; D1 = One prob
 
-	lsr.w	#ADJUST_SHIFT,d1		; prob=prob>>ADJUST_SHIFT
-	sub.w	d1,(a1)					; *pContext-=prob
-	add.w	(a1),d1					; prob+=*pContext
+	lsr.w	#ADJUST_SHIFT,d1		; new_prob=prob>>ADJUST_SHIFT
+	sub.w	d1,(a1)					; *pContext-=prob-prob>>ADJUST_SHIFT
+	add.w	(a1),d1					; prob+=*pContext=prob
 
 	mulu.w	d3,d1					; threshold=interval_size*prob
 	swap.w	d1						; threshold=threshold>>16

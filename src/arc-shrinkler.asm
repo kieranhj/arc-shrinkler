@@ -11,6 +11,8 @@
 ; 2022 Kieran Connell.
 ; ============================================================================
 
+.equ _ENDIAN_SWAP, 0
+
 .equ INIT_ONE_PROB, 0x8000
 .equ ADJUST_SHIFT, 4
 .equ SINGLE_BIT_CONTEXTS, 1
@@ -48,16 +50,14 @@
 ; Implements RangeDecoder::decode(int context_index).
 ; Decode a bit in the given context.
 ; Returns the decoded bit value.
-; R0 = context_index
+; R6 = context_index
 ; Returns R0 = bit
 ; ============================================================================
 RangeDecodeBit:
-	stmfd sp!, {r1, r7, lr}	; <= REGISTER PRESSURE!
-
 	.if _DEBUG
-	cmp r0, #0					; assert(context_index < contexts.size());
+	cmp r6, #0					; assert(context_index < contexts.size());
 	bmi .4
-	cmp r0, #NUM_CONTEXTS		; assert(context_index < contexts.size());
+	cmp r6, #NUM_CONTEXTS		; assert(context_index < contexts.size());
 	blt .3
 	.4:
 	adr r0, assert1
@@ -65,54 +65,49 @@ RangeDecodeBit:
 	.3:
 	.endif
 
-	mov r6, r0                  ; context_index
 .1:
 	cmp r3, #0x8000				; while (intervalsize < 0x8000) {
 	bge .2
 	mov r3, r3, lsl #1			; 	intervalsize <<= 1;
 
 ; RangeDecoder::getBit().
-    movs r12, r12, lsl #1       ; bit_buffer=bit_buffer << 1, C=top bit.
-    bne .7                      ; if bit_buffer!=0 goto nonewword
-    ldr r12, [r10], #4          ; bit_buffer = *pCompressed++ [3210]
-    ; Argh! Endian swap word for ARM.
+    movs r12, r12, lsl #1       ;   bit_buffer=bit_buffer << 1, C=top bit.
+    bne .7                      ;   if bit_buffer!=0 goto nonewword
+    ldr r12, [r10], #4          ;   bit_buffer = *pCompressed++ [3210]
+
     ; TODO: Add this as an additional option to Shrinkler compressor.
+    .if _ENDIAN_SWAP
+    ; Argh! Endian swap word for ARM.
     mov r0, r12, lsr #24        ; [xxx3]
     orr r0, r0, r12, lsl #24    ; [0xx3]
     and r1, r12, #0x00ff0000
     orr r0, r0, r1, lsr #8      ; [0x23]
     and r1, r12, #0x0000ff00
     orr r12, r0, r1, lsl #8     ; [0123]
+    .endif
     ;
-    adcs r12, r12, r12          ; bit_buffer=(bit_buffer << 1) | C
+    adcs r12, r12, r12          ;   bit_buffer=(bit_buffer << 1) | C, C=top bit
 .7:                             ; nonewword:
-    movcc r0, #0                ; bit = C
-    movcs r0, #1                ; bit = C
-    ; R0=bit
-
-	orr r2, r0, r2, lsl #1		; 	intervalvalue = (intervalvalue << 1) | getBit();
+    adcs r2, r2, r2             ; 	intervalvalue = (intervalvalue << 1) | getBit();
 	b .1						; }
 .2:
 
-	ldr r1, [r9, r6, lsl #2]	; unsigned prob = contexts[context_index];
+	ldr r0, [r9, r6, lsl #2]	; unsigned prob = contexts[context_index];
 
 	; R4 =	unsigned threshold
-	mul r4, r3, r1				; unsigned threshold = (intervalsize * prob) >> 16;
+	mul r4, r3, r0				; unsigned threshold = (intervalsize * prob) >> 16;
 	mov r4, r4, lsr #16			
+
+	; R0 =	unsigned new_prob = prob - (prob >> ADJUST_SHIFT);	
+	sub r0, r0, r0, lsr #ADJUST_SHIFT
 
 	cmp r2, r4					; if (intervalvalue >= threshold)
 	blt One
-	; Zero						; {
-	sub r2, r2, r4				;   intervalvalue -= threshold;
-	sub r3, r3, r4				;   intervalsize -= threshold;
-
-	; R7 =	unsigned new_prob;
-	sub r7, r1, r1, lsr #ADJUST_SHIFT	; new_prob = prob - (prob >> ADJUST_SHIFT);	
-
+	; Zero
 	.if _DEBUG
-	cmp r7, #0					;   assert(new_prob > 0);
+	cmp r0, #0					;   assert(new_prob > 0);
 	bmi .5
-	cmp r7, #0x10000			;   assert(new_prob < 0x10000);
+	cmp r0, #0x10000			;   assert(new_prob < 0x10000);
 	blt .6
 	.5:
 	adr r0, assert3
@@ -120,20 +115,20 @@ RangeDecodeBit:
 	.6:
 	.endif
 
-	str r7, [r9, r6, lsl #2]	;   contexts[context_index] = new_prob;
+	str r0, [r9, r6, lsl #2]	;   contexts[context_index] = new_prob;
+	sub r2, r2, r4				;   intervalvalue -= threshold;
+	sub r3, r3, r4				;   intervalsize -= threshold;
 	mov r0, #0					;   bit = 0;
-	ldmfd sp!, {r1, r7, lr}	;   return bit
-	mov pc, lr                  ; }
+	mov pc, lr       	        ;   return bit
 
-One:                            ; else {
-	mov r3, r4					;   intervalsize = threshold;
-	add r7, r1, #0xffff >> ADJUST_SHIFT	; new_prob = prob + (0xffff >> ADJUST_SHIFT) 
-	sub r7, r7, r1, lsr #ADJUST_SHIFT	;          - (prob >> ADJUST_SHIFT);
+One:                            ; } else {
+    ; R0 =	unsigned new_prob = prob - (prob >> ADJUST_SHIFT) + (0xffff >> ADJUST_SHIFT);	
+	add r0, r0, #0xffff >> ADJUST_SHIFT
 
 	.if _DEBUG
-	cmp r7, #0					;   assert(new_prob > 0);
+	cmp r0, #0					;   assert(new_prob > 0);
 	bmi .4 
-	cmp r7, #0x10000			;   assert(new_prob < 0x10000);
+	cmp r0, #0x10000			;   assert(new_prob < 0x10000);
 	blt .3
 	.4:
 	adr r0, assert3
@@ -141,10 +136,10 @@ One:                            ; else {
 	.3:
 	.endif
 
-	str r7, [r9, r6, lsl #2]	;   contexts[context_index] = new_prob;
+	str r0, [r9, r6, lsl #2]	;   contexts[context_index] = new_prob;
+	mov r3, r4					;   intervalsize = threshold;
 	mov r0, #1					;   bit = 1;
-	ldmfd sp!, {r1, r7, lr}	;   return bit
-	mov pc, lr                  ; }
+	mov pc, lr       	        ;   return bit
 
 .if _DEBUG
 assert1: ;The error block
@@ -173,8 +168,8 @@ RangeDecodeNumber:
 	mov r5, r0				; base_context
 	mov r1, #0				; for (i = 0 ;; i++) {
 .1:
-	add r0, r5, r1, lsl #1	; 	context = base_context + (i * 2
-	add r0, r0, #2			;           + 2);
+	add r6, r5, r1, lsl #1	; 	context = base_context + (i * 2
+	add r6, r6, #2			;           + 2);
 	bl RangeDecodeBit		;   decode(context)
 	cmp r0, #0
 	beq .2					;   if (decode(context) == 0) break;
@@ -183,8 +178,8 @@ RangeDecodeNumber:
 .2:
 	mov r7, #1				; int number = 1;
 .3:							; for (; i >= 0 ; i--) {
-	add r0, r5, r1, lsl #1	;   context = base_context + (i * 2
-	add r0, r0, #1			; 		    + 1);
+	add r6, r5, r1, lsl #1	;   context = base_context + (i * 2
+	add r6, r6, #1			; 		    + 1);
 	bl RangeDecodeBit		;   decode(context);
 	orr r7, r0, r7, lsl #1	;   number = (number << 1) | bit;
 	subs r1, r1, #1			;   i--
@@ -201,7 +196,7 @@ RangeDecodeNumber:
 ; ============================================================================
 decode:
 	stmfd sp!, {r1,r5, lr}	; <=REGISTER PRESSURE!
-	add r0, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + context
+	add r6, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + context
 	bl RangeDecodeBit				; decode(...)
 	ldmfd sp!, {r1,r5, lr}	; <=REGISTER PRESSURE!
 	mov pc, lr
@@ -213,11 +208,11 @@ decode:
 ; Returns R0 = RangeDecoder::decodeNumber(NUM_SINGLE_CONTEXTS + (context_group << 8))
 ; ============================================================================
 decodeNumber:
-	stmfd sp!, {r1,r5,r8, lr}	; <=REGISTER PRESSURE!
+	stmfd sp!, {r1,r5, lr}	; <=REGISTER PRESSURE!
 	mov r0, r0, lsl #8
-	add r0, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + (context_group << 8));
+	add r6, r0, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + (context_group << 8));
 	bl RangeDecodeNumber			; decodeNumber(...)
-	ldmfd sp!, {r1,r5,r8, lr}	; <=REGISTER PRESSURE!
+	ldmfd sp!, {r1,r5, lr}	; <=REGISTER PRESSURE!
 	mov pc, lr
 
 

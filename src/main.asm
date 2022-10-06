@@ -71,7 +71,7 @@ context:
 .skip NUM_CONTEXTS*4
 
 compressed_data:
-.incbin "build/a252eur3.shr"
+.incbin "build/test.shri"
 .align 4
 
 decompressed_data:
