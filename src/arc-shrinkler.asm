@@ -210,8 +210,8 @@ LZDecode:
 
     add r9, r9, #NUM_SINGLE_CONTEXTS*4
 
+LZDecode_literal:
     ; bool ref = false
-LZDecode_literal:				; } else {
 
 	and r5, r11, #PARITY_MASK	;   int parity = pos & parity_mask;
     mov r5, r5, lsl #8          ;   (parity << 8)
@@ -220,13 +220,14 @@ LZDecode_literal:				; } else {
 .1:
 	orr r6, r6, r5      		;     (parity << 8) | context
 	bl RangeDecodeBit			;     int bit = decode((parity << 8) | context);
-    bic r6, r6, r5
+    bic r6, r6, r5              ;     remove parity bits
 	orr r6, r0, r6, lsl #1		;     context = (context << 1) | bit;
 	subs r1, r1, #1			    ;     i--
 	bpl .1						;   while (i >= 0)
 	strb r6, [r11], #1			;   *pDest++ = lit;
-                                ; }
+
     ; TODO: ReportProgress callback.
+
     ; After literal.
     ; GetKind:
 	and r6, r11, #PARITY_MASK	; int parity = pos & parity_mask;
@@ -252,11 +253,13 @@ LZDecode_readlength:
 
 	; Copied from Verifier::receiveReference(offset, length)
 	sub r4, r11, r8				; pos - offset
-LZDecode_copyloop:				; for (int i = 0 ; i < length ; i++) {
+.1:				                ; for (int i = 0 ; i < length ; i++) {
 	ldrb r1, [r4], #1			; 	data[pos - offset + i]
 	strb r1, [r11], #1			; 	data[pos + i]
 	subs r0, r0, #1				;   i--
-	bne LZDecode_copyloop		; }
+	bne .1		; }
+
+    ; TODO: ReportProgress callback.
 
     ; After reference.
     ; GetKind:
@@ -268,9 +271,10 @@ LZDecode_copyloop:				; for (int i = 0 ; i < length ; i++) {
     cmp r0, #0
     beq LZDecode_literal
 
+LZDecode_readoffset:
     ; bool ref = true;
     ; bool prev_was_ref = true;
-LZDecode_readoffset:
+
 	mov r6, #CONTEXT_GROUP_OFFSET<<8; (context_group << 8)
 	bl RangeDecodeNumber			; offset = decodeNumber(LZEncoder::CONTEXT_GROUP_OFFSET)
 	sub r8, r0, #2				;          - 2;
