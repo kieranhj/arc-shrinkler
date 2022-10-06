@@ -3,7 +3,7 @@
 ; TODO: May become a Module at some point?
 ; ============================================================================
 
-.equ _DEBUG, 1
+.equ _DEBUG, 0
 
 .include "lib/swis.h.asm"
 

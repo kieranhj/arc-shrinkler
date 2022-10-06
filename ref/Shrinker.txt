@@ -6,11 +6,17 @@ Acorn Archimedes ARM port.
 
 TODO:
 ~~~
-- Look at 68K implementation for ideas on how to optimise.
+- Look at 68K implementation for ideas on how to optimise. - DONE
 - Remove need to look up every single byte. - DONE w/ bit_buffer.
-- Reduce register pressure.
-- Inline funtions.
+- Reduce register pressure. - DONE
+- Inline funtions. - DONE
 - Proper Makefile.
 - Implement callback fn.
 - Make it a Relocatable Module?
 - Add proper command-line option to Shrinkler.exe for endian swap word output.
+- Test with a wider range of data files!
+- Add verification of output to test harness.
+
+Size
+~~
+Currently 380 bytes = 95 words without _DEBUG.

@@ -160,7 +160,7 @@ assert3: ;The error block
 ; Decode a number >= 2 using a variable-length encoding.
 ; Returns the decoded number.
 ; R6 = base_context
-; Returns R0 = number
+; Returns R7 = number
 ; ============================================================================
 RangeDecodeNumber:
 	str lr, [sp, #-4]!
@@ -181,7 +181,6 @@ RangeDecodeNumber:
 	orr r7, r0, r7, lsl #1	;   number = (number << 1) | bit;
 	subs r1, r1, #1			;   i--
 	bpl .3					; 
-	mov r0, r7
 	ldr pc, [sp], #4		; return number;
 
 
@@ -256,7 +255,7 @@ LZDecode_readlength:
 .1:				                ; for (int i = 0 ; i < length ; i++) {
 	ldrb r1, [r4], #1			; 	data[pos - offset + i]
 	strb r1, [r11], #1			; 	data[pos + i]
-	subs r0, r0, #1				;   i--
+	subs r7, r7, #1				;   i--
 	bne .1		; }
 
     ; TODO: ReportProgress callback.
@@ -277,7 +276,7 @@ LZDecode_readoffset:
 
 	mov r6, #CONTEXT_GROUP_OFFSET<<8; (context_group << 8)
 	bl RangeDecodeNumber			; offset = decodeNumber(LZEncoder::CONTEXT_GROUP_OFFSET)
-	sub r8, r0, #2				;          - 2;
+	sub r8, r7, #2				;          - 2;
 	cmp r8, #0					;
 	bne LZDecode_readlength 	;   if (offset == 0) break;
 	ldr pc, [sp], #4			; return true
