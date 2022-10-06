@@ -190,20 +190,6 @@ RangeDecodeNumber:
 
 
 ; ============================================================================
-; Implements LZDecoder::decodeNumber(int context_group).
-; R6 = context_group
-; Returns R0 = RangeDecoder::decodeNumber(NUM_SINGLE_CONTEXTS + (context_group << 8))
-; ============================================================================
-decodeNumber:
-	stmfd sp!, {r1,r5, lr}	; <=REGISTER PRESSURE!
-	mov r6, r6, lsl #8
-	add r6, r6, #NUM_SINGLE_CONTEXTS; NUM_SINGLE_CONTEXTS + (context_group << 8));
-	bl RangeDecodeNumber			; decodeNumber(...)
-	ldmfd sp!, {r1,r5, lr}	; <=REGISTER PRESSURE!
-	mov pc, lr
-
-
-; ============================================================================
 ; Implements LZDecoder::decode().
 ; Decodes an LZ stream using the RangeDecoder.
 ; R9 = context				(global)
@@ -279,8 +265,9 @@ LZDecode_reference:
 	beq LZDecode_readoffset
 
 LZDecode_readlength:
-	mov r6, #CONTEXT_GROUP_LENGTH
-	bl decodeNumber				; int length = decodeNumber(LZEncoder::CONTEXT_GROUP_LENGTH);
+	mov r6, #CONTEXT_GROUP_LENGTH<<8; (context_group << 8)
+	add r6, r6, #NUM_SINGLE_CONTEXTS; + NUM_SINGLE_CONTEXTS
+	bl RangeDecodeNumber			; int length = decodeNumber(LZEncoder::CONTEXT_GROUP_LENGTH);
 
 	; Copied from Verifier::receiveReference(offset, length)
 	sub r4, r11, r8				; pos - offset
@@ -303,9 +290,10 @@ LZDecode_copyloop:				; for (int i = 0 ; i < length ; i++) {
     ; bool ref = true;
     ; bool prev_was_ref = true;
 LZDecode_readoffset:
-	mov r6, #CONTEXT_GROUP_OFFSET
-	bl decodeNumber				;   offset = decodeNumber(LZEncoder::CONTEXT_GROUP_OFFSET)
-	sub r8, r0, #2				;	       - 2;
+	mov r6, #CONTEXT_GROUP_OFFSET<<8; (context_group << 8)
+	add r6, r6, #NUM_SINGLE_CONTEXTS; + NUM_SINGLE_CONTEXTS
+	bl RangeDecodeNumber			; offset = decodeNumber(LZEncoder::CONTEXT_GROUP_OFFSET)
+	sub r8, r0, #2				;          - 2;
 	cmp r8, #0					;
 	bne LZDecode_readlength 	;   if (offset == 0) break;
 	ldr pc, [sp], #4			; return true
