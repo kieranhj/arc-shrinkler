@@ -191,8 +191,8 @@ RangeDecodeNumber:
 ; R10 = source				(global)
 ; R11 = dest				(global)
 ; ============================================================================
-LZDecode:
-	str lr, [sp, #-4]!
+ShrinklerDecompress:
+	stmfd sp!, {r11, lr}
 	mov r2, #0					; intervalvalue = 0;
 	mov r3, #1					; intervalsize = 1;
     mov r6, #0                  ; bit_context = 0;
@@ -256,7 +256,7 @@ LZDecode_readlength:
 	ldrb r1, [r4], #1			; 	data[pos - offset + i]
 	strb r1, [r11], #1			; 	data[pos + i]
 	subs r7, r7, #1				;   i--
-	bne .1		; }
+	bne .1						; }
 
     ; TODO: ReportProgress callback.
 
@@ -279,4 +279,8 @@ LZDecode_readoffset:
 	sub r8, r7, #2				;          - 2;
 	cmp r8, #0					;
 	bne LZDecode_readlength 	;   if (offset == 0) break;
-	ldr pc, [sp], #4			; return true
+
+	; Return number of bytes written in R0.
+	ldmfd sp!, {r10, lr}
+	sub r0, r11, r10
+	mov pc, lr					; return

@@ -52,10 +52,28 @@ main:
 	adr r9, context
 	adr r10, compressed_data
 	adr r11, decompressed_data
-	bl LZDecode
+	bl ShrinklerDecompress
+
+	adr r1, string_buffer
+	mov r2, #16
+	swi OS_ConvertCardinal4
+
+	adr r0, wrote_msg
+	swi OS_WriteO
+	adr r0, string_buffer
+	swi OS_WriteO
+	swi OS_WriteI+13
+	swi OS_WriteI+10
 
 	ldr pc, [sp], #4
 	swi OS_Exit
+
+string_buffer:
+	.skip 16
+
+wrote_msg:
+	.byte "Wrote bytes:",0
+	.align 4
 
 ; ============================================================================
 ; Code

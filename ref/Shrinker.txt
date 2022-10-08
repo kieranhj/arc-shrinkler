@@ -16,6 +16,7 @@ TODO:
 - Add proper command-line option to Shrinkler.exe for endian swap word output.
 - Test with a wider range of data files!
 - Add verification of output to test harness.
+- Handle Shrinkler header?
 
 Size
 ~~
