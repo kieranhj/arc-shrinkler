@@ -32,7 +32,7 @@ build/shrinkler.bin: src/main.asm src/arc-shrinkler.asm build/test.shri
 	$(MKDIR_P) build
 	$(VASM) -L build/compile.txt -o build/shrinkler.bin src/main.asm
 
-build/test.shri: data/waytoorude.bin #data/a252eur3.txt
+build/test.shri: data/a252eur3.txt
 	$(MKDIR_P) build
 	$(SHRINKLER) $< $@
 
