@@ -21,4 +21,17 @@ TODO:
 Size
 ~~
 Currently 380 bytes = 95 words without _DEBUG.
-stniccc/scene1.bin goes wrong after 0x4c8 bytes written.
+stniccc/scene1.bin goes wrong after 0x4c8 bytes written. - FIXED!
+
+Header
+~~~
+struct DataHeader {
+	char magic[4];
+	char major_version;
+	char minor_version;
+	Word header_size;
+	Longword compressed_size;
+	Longword uncompressed_size;
+	Longword safety_margin;
+	Longword flags;
+};

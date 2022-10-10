@@ -4,6 +4,7 @@
 ; ============================================================================
 
 .equ _DEBUG, 1
+.equ _TEST_HEADER, 0
 
 .include "lib/swis.h.asm"
 
@@ -54,7 +55,12 @@ main:
 	adr r2, write_bytes_callback
 	mov r3, #0
 	adr r9, context
+
+	.if _TEST_HEADER
+	bl ShrinklerParseHeader
+	.else
 	bl ShrinklerDecompress
+	.endif
 
 	swi OS_WriteI+13
 	swi OS_WriteI+10
@@ -124,8 +130,8 @@ context:
 
 compressed_data:
 ;.incbin "build/a252.shri"
-;.incbin "build/stniccc.shri"
-.incbin "build/waytoorude.shri"
+.incbin "build/stniccc.shri"
+;.incbin "build/waytoorude.shri"
 .align 4
 
 decompressed_data:

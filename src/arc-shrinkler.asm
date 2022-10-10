@@ -11,12 +11,22 @@
 ; 2022 Kieran Connell.
 ; ============================================================================
 
+; ============================================================================
+; Assembler options that will depend on the command line options used with
+; Shrinkler.exe:
+;   -b, --bytes          Disable parity context - better on byte-oriented data
+;   -w, --header         Write data file header for easier loading
+;   -z, --endian-swap    Write data words in little-endian format (for ARM).
+ 
+.equ _PARITY_MASK, 0			; byte or short word data.
+.equ _PARSE_HEADER, 0			; include function to decode header block.
 .equ _ENDIAN_SWAP, 0			; swap byte in long word at runtime.
+
+; ============================================================================
 
 .equ INIT_ONE_PROB, 0x8000
 .equ ADJUST_SHIFT, 4
 .equ NUM_CONTEXTS, 1536
-.equ PARITY_MASK, 0				; byte or short word data.
 
 .equ NUM_SINGLE_CONTEXTS, 1
 
@@ -25,6 +35,8 @@
 .equ CONTEXT_GROUP_LIT, 0
 .equ CONTEXT_GROUP_OFFSET, 2
 .equ CONTEXT_GROUP_LENGTH, 3
+
+.equ FLAG_PARITY_CONTEXT, (1 << 0)
 
 ; ============================================================================
 ; ARM Register Usage.
@@ -192,6 +204,7 @@ RangeDecodeNumber:
 ; R2 = callback fn.			(global)
 ; R3 = callback arg.
 ; R9 = context				(global)
+; Returns R0 = bytes written
 ; ============================================================================
 
 ShrinklerDecompress:
@@ -240,8 +253,8 @@ LZDecode_literal:
 
     ; After literal.
     ; GetKind:
-	.if PARITY_MASK != 0
-	and r6, r11, #PARITY_MASK	; int parity = pos & parity_mask;
+	.if _PARITY_MASK != 0
+	and r6, r11, #_PARITY_MASK	; int parity = pos & _PARITY_MASK;
 	mov r6, r6, lsl #8
 	add r6, r6, #CONTEXT_KIND
 	.else
@@ -279,8 +292,8 @@ LZDecode_readlength:
 
     ; After reference.
     ; GetKind:
-	.if PARITY_MASK != 0
-	and r6, r11, #PARITY_MASK	; int parity = pos & parity_mask;
+	.if _PARITY_MASK != 0
+	and r6, r11, #_PARITY_MASK	; int parity = pos & _PARITY_MASK;
 	mov r6, r6, lsl #8
 	add r6, r6, #CONTEXT_KIND
 	.else
@@ -306,6 +319,8 @@ LZDecode_readoffset:
 	sub r0, r11, r0
 	ldr pc, [sp], #4			; return.
 
+; ============================================================================
+
 callback_arg:
 	.long 0
 
@@ -317,3 +332,95 @@ ReportProgress:
 	sub r0, r11, r0				; bytes written.
 	ldr r1, callback_arg
 	mov pc, r5
+
+; ============================================================================
+; Decodes the Shrinkler header, decompress and verify.
+; R0 = source				(global)
+; R1 = dest					(global)
+; R2 = callback fn.			(global)
+; R3 = callback arg.
+; R9 = context				(global)
+; ============================================================================
+
+.if _PARSE_HEADER
+ShrinklerParseHeader:
+	str lr, [sp, #-4]!
+
+	ldr r4, [r0], #4			; char magic[4];
+	ldr r5, ShriMagic
+	cmp r4, r5
+
+	.if _DEBUG
+	adrne r0, ShriFail
+	swine OS_GenerateError
+	.else
+	movne r0, #-1
+	ldrne pc, [sp], #4			; return -1
+	.endif
+
+	ldr r4, [r0], #1			; char major_version;
+	ldr r4, [r0], #1			; char minor_version;
+	; Ignored.
+
+	ldrb r4, [r0], #1			; header_size+0
+	ldrb r5, [r0], #1			; header_size+1
+	orr r5, r4, r5, lsl #8		; Word header_size;
+	add r5, r5, r0				; source = * + header_size
+
+	ldr r4, [r0], #4			; Longword compressed_size;
+	; Ignored.
+	ldr r6, [r0], #4			; Longword uncompressed_size;
+
+	.if _ENDIAN_SWAP
+	.err "Run-time endian swap of header not implemented!"
+	.endif
+
+	ldr r4, [r0], #4			; Longword safety_margin;
+	; Ignored.
+	ldr r4, [r0], #4			; Longword flags;
+	teq r4, #_PARITY_MASK	
+
+	.if _DEBUG
+	adrne r0, ParityFail
+	swine OS_GenerateError
+	.else
+	movne r0, #0
+	ldrne pc, [sp], #4			; return 0.
+	.endif
+
+	str r6, [sp, #-4]!			; remember uncompressed size.
+	mov r0, r5					; source.
+	bl ShrinklerDecompress
+	ldr r4, [sp], #4			; recall uncompressed size.
+	cmp r0, r4
+
+	.if _DEBUG
+	adrne r0, SizeFail
+	swine OS_GenerateError
+	.endif
+	ldr pc, [sp], #4			; return number of bytes written.
+
+ShriMagic:
+	.byte "Shri"
+
+.if _DEBUG
+ShriFail: ;The error block
+    .long 18
+	.byte "Data does not begin with magic 'Shri'."
+	.align 4
+	.long 0
+
+ParityFail: ;The error block
+    .long 18
+	.byte "Shrinkler header parity flag mismatch."
+	.align 4
+	.long 0
+
+SizeFail: ;The error block
+    .long 18
+	.byte "Decompressed size does not match uncompressed size."
+	.align 4
+	.long 0
+
+.endif
+.endif
