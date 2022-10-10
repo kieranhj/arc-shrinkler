@@ -10,12 +10,12 @@ TODO:
 - Remove need to look up every single byte. - DONE w/ bit_buffer.
 - Reduce register pressure. - DONE
 - Inline funtions. - DONE
-- Proper Makefile.
-- Implement callback fn.
+- Proper Makefile. - DONE
+- Implement callback fn. - DONE
 - Make it a Relocatable Module?
-- Add proper command-line option to Shrinkler.exe for endian swap word output.
-- Test with a wider range of data files!
-- Add verification of output to test harness.
+- Add proper command-line option to Shrinkler.exe for endian swap word output. - DONE
+- Test with a wider range of data files! - ISH.
+- Add verification of output to test harness. -ISH
 - Handle Shrinkler header?
 
 Size

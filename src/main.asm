@@ -49,10 +49,15 @@ main:
 	subs r1, r1, #1
 	bne .1
 
+	adr r0, compressed_data
+	ldr r1, p_out
+	adr r2, write_bytes_callback
+	mov r3, #0
 	adr r9, context
-	adr r10, compressed_data
-	ldr r11, p_out
 	bl ShrinklerDecompress
+
+	swi OS_WriteI+13
+	swi OS_WriteI+10
 
 	adr r1, string_buffer
 	mov r2, #16
@@ -75,6 +80,32 @@ wrote_msg:
 	.byte "Wrote bytes:",0
 	.align 4
 
+write_bytes_callback:
+	str r2, [sp, #-4]!
+	mov r1, r0, lsr #12
+	ldr r2, .1
+	cmp r1, r2
+	ldreq r2, [sp], #4
+	moveq pc ,lr
+	str r1, .1
+	
+	adr r1, string_buffer
+	mov r2, #16
+	swi OS_ConvertCardinal4
+	swi OS_WriteI+13
+	adr r0, string_buffer
+	swi OS_WriteO
+	swi OS_WriteI+32
+	swi OS_WriteI+'b'
+	swi OS_WriteI+'y'
+	swi OS_WriteI+'t'
+	swi OS_WriteI+'e'
+	swi OS_WriteI+'s'
+	ldr r2, [sp], #4
+	mov pc ,lr
+.1:
+	.long -1
+
 ; ============================================================================
 ; Code
 ; ============================================================================
@@ -92,7 +123,9 @@ context:
 .skip NUM_CONTEXTS*4
 
 compressed_data:
-.incbin "build/stniccc.shri"
+;.incbin "build/a252.shri"
+;.incbin "build/stniccc.shri"
+.incbin "build/waytoorude.shri"
 .align 4
 
 decompressed_data:

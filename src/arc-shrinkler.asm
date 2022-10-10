@@ -35,7 +35,7 @@
 ; R2  = unsigned intervalvalue 	(RangeDecoder)
 ; R3  = unsigned intervalsize	(RangeDecoder)
 ; R4  = temp                    (local only)
-; R5  = unused
+; R5  = callback fn.			(global)
 ; R6  = context_index           (parameter)
 ; R7  = temp                    (DecodeNumber, LZDecodeLiteral)
 ; R8  = int offset              (LZDecode)
@@ -187,13 +187,21 @@ RangeDecodeNumber:
 ; ============================================================================
 ; Implements LZDecoder::decode().
 ; Decodes an LZ stream using the RangeDecoder.
+; R0 = source				(global)
+; R1 = dest					(global)
+; R2 = callback fn.			(global)
+; R3 = callback arg.
 ; R9 = context				(global)
-; R10 = source				(global)
-; R11 = dest				(global)
 ; ============================================================================
 
 ShrinklerDecompress:
-	stmfd sp!, {r11, lr}
+	str lr, [sp, #-4]!
+	mov r10, r0					; source
+	mov r11, r1					; destination
+	str r1, decomp_base
+	mov r5, r2					; callback fn.
+	str r3, callback_arg
+
 	mov r2, #0					; intervalvalue = 0;
 	mov r3, #1					; intervalsize = 1;
     mov r6, #0                  ; bit_context = 0;
@@ -225,6 +233,10 @@ LZDecode_literal:
 	cmp r6, #0x100				;   <- byte carry.
 	blt .1
 	strb r6, [r11], #1			;   *pDest++ = lit;
+
+    ; ReportProgress callback.
+	cmp r5, #0
+	blne ReportProgress
 
     ; After literal.
     ; GetKind:
@@ -261,7 +273,9 @@ LZDecode_readlength:
 	subs r7, r7, #1				;   i--
 	bne .1						; }
 
-    ; TODO: ReportProgress callback.
+    ; ReportProgress callback.
+	cmp r5, #0
+	blne ReportProgress
 
     ; After reference.
     ; GetKind:
@@ -288,6 +302,18 @@ LZDecode_readoffset:
 	bne LZDecode_readlength 	;   if (offset == 0) break;
 
 	; Return number of bytes written in R0.
-	ldmfd sp!, {r10, lr}
-	sub r0, r11, r10
-	mov pc, lr					; return
+	ldr r0, decomp_base 
+	sub r0, r11, r0
+	ldr pc, [sp], #4			; return.
+
+callback_arg:
+	.long 0
+
+decomp_base:
+	.long 0
+
+ReportProgress:
+	ldr r0, decomp_base
+	sub r0, r11, r0				; bytes written.
+	ldr r1, callback_arg
+	mov pc, r5
