@@ -11,12 +11,12 @@
 ; 2022 Kieran Connell.
 ; ============================================================================
 
-.equ _ENDIAN_SWAP, 0
+.equ _ENDIAN_SWAP, 0			; swap byte in long word at runtime.
 
 .equ INIT_ONE_PROB, 0x8000
 .equ ADJUST_SHIFT, 4
 .equ NUM_CONTEXTS, 1536
-.equ PARITY_MASK, 1
+.equ PARITY_MASK, 0				; byte or short word data.
 
 .equ NUM_SINGLE_CONTEXTS, 1
 
@@ -74,20 +74,20 @@ RangeDecodeBit:
     bne .7                      ;   if bit_buffer!=0 goto nonewword
     ldr r12, [r10], #4          ;   bit_buffer = *pCompressed++ [3210]
 
-    ; TODO: Add this as an additional option to Shrinkler compressor.
     .if _ENDIAN_SWAP
     ; Argh! Endian swap word for ARM.
     mov r0, r12, lsr #24        ; [xxx3]
     orr r0, r0, r12, lsl #24    ; [0xx3]
-    and r1, r12, #0x00ff0000
-    orr r0, r0, r1, lsr #8      ; [0x23]
-    and r1, r12, #0x0000ff00
-    orr r12, r0, r1, lsl #8     ; [0123]
+    and r4, r12, #0x00ff0000
+    orr r0, r0, r4, lsr #8      ; [0x23]
+    and r4, r12, #0x0000ff00
+    orr r12, r0, r4, lsl #8     ; [0123]
     .endif
-    ;
+
+    ; This is genius - last bit will always be 1 and signify that all bits have been consumed.
     adcs r12, r12, r12          ;   bit_buffer=(bit_buffer << 1) | C, C=top bit
 .7:                             ; nonewword:
-    adcs r2, r2, r2             ; 	intervalvalue = (intervalvalue << 1) | getBit();
+    adc r2, r2, r2             ; 	intervalvalue = (intervalvalue << 1) | getBit();
 	b .1						; }
 .2:
 
@@ -176,9 +176,9 @@ RangeDecodeNumber:
     sub r6, r6, #1
 	mov r7, #1				; int number = 1;
 .3:							; 
-    sub r6, r6, #2          ;   context = base_context + (i * 2)
 	bl RangeDecodeBit		;   decode(context);
 	orr r7, r0, r7, lsl #1	;   number = (number << 1) | bit;
+    sub r6, r6, #2          ;   context = base_context + (i * 2)
 	subs r1, r1, #1			;   i--
 	bpl .3					; 
 	ldr pc, [sp], #4		; return number;
@@ -191,6 +191,7 @@ RangeDecodeNumber:
 ; R10 = source				(global)
 ; R11 = dest				(global)
 ; ============================================================================
+
 ShrinklerDecompress:
 	stmfd sp!, {r11, lr}
 	mov r2, #0					; intervalvalue = 0;
@@ -212,20 +213,20 @@ ShrinklerDecompress:
 LZDecode_literal:
     ; bool ref = false
 
+	; R6 should still contain (parity << 8) from GetKind...
 	and r5, r11, #PARITY_MASK	;   int parity = pos & parity_mask;
     mov r5, r5, lsl #8          ;   (parity << 8)
 	mov r6, #1					;   int context = 1;
+	; Could use last bit loop trick here....
 	mov r1, #7					;   int i = 7
 .1:
 	orr r6, r6, r5      		;     (parity << 8) | context
 	bl RangeDecodeBit			;     int bit = decode((parity << 8) | context);
-    bic r6, r6, r5              ;     remove parity bits
 	orr r6, r0, r6, lsl #1		;     context = (context << 1) | bit;
+    bic r6, r6, #0xff00         ;     remove parity bits
 	subs r1, r1, #1			    ;     i--
 	bpl .1						;   while (i >= 0)
 	strb r6, [r11], #1			;   *pDest++ = lit;
-
-    ; TODO: ReportProgress callback.
 
     ; After literal.
     ; GetKind:

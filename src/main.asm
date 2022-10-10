@@ -3,7 +3,7 @@
 ; TODO: May become a Module at some point?
 ; ============================================================================
 
-.equ _DEBUG, 0
+.equ _DEBUG, 1
 
 .include "lib/swis.h.asm"
 
@@ -41,7 +41,7 @@ main:
 	;bl ShrinklerDecompress
 
 	; Wipe decompressed area so we're not fooled!
-	adr r11, decompressed_data
+	ldr r11, p_out
 	mov r0, #0
 	mov r1, #63336
 	.1:
@@ -51,7 +51,7 @@ main:
 
 	adr r9, context
 	adr r10, compressed_data
-	adr r11, decompressed_data
+	ldr r11, p_out
 	bl ShrinklerDecompress
 
 	adr r1, string_buffer
@@ -84,6 +84,9 @@ wrote_msg:
 ; ============================================================================
 ; Data
 ; ============================================================================
+
+p_out:
+	.long decompressed_data
 
 context:
 .skip NUM_CONTEXTS*4

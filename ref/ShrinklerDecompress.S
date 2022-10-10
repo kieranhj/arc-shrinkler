@@ -56,10 +56,15 @@ ShrinklerDecompress:
 	; bool ref = false => start with literal.
 .lit:
 	; Literal
-	addq.b	#1,d6					; bit_context++ [BYTE]
+	; d6 already contains parity_context from GetKind.
+	addq.b	#1,d6					; bit_context |= 1 [BYTE]
 .getlit:
 	bsr.b	GetBit					; [C, X]=GetBit()
 	addx.b	d6,d6					; bit_context=(bit_context << 1) | X
+	; Same genius here. The context byte always starts with 1.
+	; Because the operation is addx.b which only operates on a byte
+	; We are guaranteed to have a carry after 8 shifts, hence loop
+	; 8 times without requiring a separate counter...
 	bcc.b	.getlit					; if C=0 goto .getlit
 	move.b	d6,(a5)+				; *pOut++ = bit_context [BYTE]
 	bsr.b	ReportProgress			; ReportProgress()
