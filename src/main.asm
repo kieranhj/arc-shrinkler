@@ -92,7 +92,7 @@ context:
 .skip NUM_CONTEXTS*4
 
 compressed_data:
-.incbin "build/test.shri"
+.incbin "build/stniccc.shri"
 .align 4
 
 decompressed_data:

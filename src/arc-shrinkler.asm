@@ -35,7 +35,7 @@
 ; R2  = unsigned intervalvalue 	(RangeDecoder)
 ; R3  = unsigned intervalsize	(RangeDecoder)
 ; R4  = temp                    (local only)
-; R5  = temp                    (LZDecodeLiteral)
+; R5  = unused
 ; R6  = context_index           (parameter)
 ; R7  = temp                    (DecodeNumber, LZDecodeLiteral)
 ; R8  = int offset              (LZDecode)
@@ -213,23 +213,17 @@ ShrinklerDecompress:
 LZDecode_literal:
     ; bool ref = false
 
-	; R6 should still contain (parity << 8) from GetKind...
-	.if PARITY_MASK != 0
-	and r5, r11, #PARITY_MASK	;   int parity = pos & parity_mask;
-    mov r5, r5, lsl #8          ;   (parity << 8)
-	.else
-	mov r5, #0
-	.endif
+	; R6 contains (parity << 8) from GetKind...
+	mov r1, r6
 	mov r6, #1					;   int context = 1;
-	; Could use last bit loop trick here....
-	mov r1, #7					;   int i = 7
 .1:
-	orr r6, r6, r5      		;     (parity << 8) | context
-	bl RangeDecodeBit			;     int bit = decode((parity << 8) | context);
-	orr r6, r0, r6, lsl #1		;     context = (context << 1) | bit;
     bic r6, r6, #0xff00         ;     remove parity bits
-	subs r1, r1, #1			    ;     i--
-	bpl .1						;   while (i >= 0)
+	orr r6, r6, r1      		;     (parity << 8) | context
+	bl RangeDecodeBit			;     int bit = decode((parity << 8) | context);
+    bic r6, r6, #0xff00         ;     remove parity bits
+	orr r6, r0, r6, lsl #1		;     context = (context << 1) | bit;
+	cmp r6, #0x100				;   <- byte carry.
+	blt .1
 	strb r6, [r11], #1			;   *pDest++ = lit;
 
     ; After literal.

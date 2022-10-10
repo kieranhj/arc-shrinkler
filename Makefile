@@ -29,13 +29,9 @@ SHRINKLER_ARC=shrinkler,ff8
 .PHONY:shrinkler
 shrinkler: $(ARCULATOR_HOSTFS)/$(SHRINKLER_ARC)
 
-build/shrinkler.bin: src/main.asm src/arc-shrinkler.asm build/test.shri
+build/shrinkler.bin: src/main.asm src/arc-shrinkler.asm build/stniccc.shri build/a252.shri build/waytoorude.shri
 	$(MKDIR_P) build
 	$(VASM) -L build/compile.txt -o build/shrinkler.bin src/main.asm
-
-build/test.shri: data/stniccc.bin #data/a252eur3.txt #data/waytoorude.bin 
-	$(MKDIR_P) build
-	$(SHRINKLER) $< $@
 
 $(ARCULATOR_HOSTFS)/$(SHRINKLER_ARC): build/shrinkler.bin
 	$(RM_RF) $(ARCULATOR_HOSTFS)/$(SHRINKLER_ARC)
@@ -43,3 +39,15 @@ $(ARCULATOR_HOSTFS)/$(SHRINKLER_ARC): build/shrinkler.bin
 
 ##########################################################################
 ##########################################################################
+
+build/stniccc.shri: data/stniccc.bin
+	$(MKDIR_P) build
+	$(SHRINKLER) $< $@
+
+build/a252.shri: data/a252eur3.txt
+	$(MKDIR_P) build
+	$(SHRINKLER) $< $@
+
+build/waytoorude.shri: data/waytoorude.bin 
+	$(MKDIR_P) build
+	$(SHRINKLER) $< $@
