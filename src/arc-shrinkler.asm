@@ -214,8 +214,12 @@ LZDecode_literal:
     ; bool ref = false
 
 	; R6 should still contain (parity << 8) from GetKind...
+	.if PARITY_MASK != 0
 	and r5, r11, #PARITY_MASK	;   int parity = pos & parity_mask;
     mov r5, r5, lsl #8          ;   (parity << 8)
+	.else
+	mov r5, #0
+	.endif
 	mov r6, #1					;   int context = 1;
 	; Could use last bit loop trick here....
 	mov r1, #7					;   int i = 7
@@ -230,9 +234,13 @@ LZDecode_literal:
 
     ; After literal.
     ; GetKind:
+	.if PARITY_MASK != 0
 	and r6, r11, #PARITY_MASK	; int parity = pos & parity_mask;
 	mov r6, r6, lsl #8
 	add r6, r6, #CONTEXT_KIND
+	.else
+	mov r6, #CONTEXT_KIND
+	.endif
 	bl RangeDecodeBit			; ref = decode(LZEncoder::CONTEXT_KIND + (parity << 8));
     ; R0=ref
     cmp r0, #0
@@ -263,9 +271,13 @@ LZDecode_readlength:
 
     ; After reference.
     ; GetKind:
+	.if PARITY_MASK != 0
 	and r6, r11, #PARITY_MASK	; int parity = pos & parity_mask;
 	mov r6, r6, lsl #8
 	add r6, r6, #CONTEXT_KIND
+	.else
+	mov r6, #CONTEXT_KIND
+	.endif
 	bl RangeDecodeBit			; ref = decode(LZEncoder::CONTEXT_KIND + (parity << 8));
     ; R0=ref
     cmp r0, #0
