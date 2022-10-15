@@ -130,8 +130,8 @@ context:
 
 compressed_data:
 ;.incbin "build/a252.shri"
-.incbin "build/stniccc.shri"
-;.incbin "build/waytoorude.shri"
+;.incbin "build/stniccc.shri"
+.incbin "build/qtmmodule.shri"
 .align 4
 
 decompressed_data:

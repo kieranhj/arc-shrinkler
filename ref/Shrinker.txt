@@ -16,7 +16,9 @@ TODO:
 - Add proper command-line option to Shrinkler.exe for endian swap word output. - DONE
 - Test with a wider range of data files! - ISH.
 - Add verification of output to test harness. -ISH
-- Handle Shrinkler header?
+- Handle Shrinkler header? - DONE
+- Documentation. - DONE
+- Contact Blueberry.
 
 Size
 ~~
