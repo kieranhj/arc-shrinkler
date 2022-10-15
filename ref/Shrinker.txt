@@ -18,7 +18,7 @@ TODO:
 - Add verification of output to test harness. -ISH
 - Handle Shrinkler header? - DONE
 - Documentation. - DONE
-- Contact Blueberry.
+- Contact Blueberry. - DONE
 
 Size
 ~~
@@ -37,3 +37,18 @@ struct DataHeader {
 	Longword safety_margin;
 	Longword flags;
 };
+
+4 byte parity context
+~~~
+Assume this would give better compression ratios for pure ARM code that has fixed
+32-bit instruction size.
+
+Limited testing seems to prove this case.
+E.g. QTMModule is 63064 bytes raw.
+Parity 0 (byte data) compresses to 13053 bytes (~20.7%)
+Parity 4 (32-bit word data) compresses to 12799 bytes (~20.3%)
+
+Probably only worth continuing further and implementing the decompressor if those
+last few bytes are really needed for a future 4K/64K demo.
+
+(Standard text data and the STNICCC data set come out larger, as expected.)
