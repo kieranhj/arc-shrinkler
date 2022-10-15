@@ -3,7 +3,6 @@
 An Acorn Archimedes port of the [Shrinkler](https://github.com/askeksa/Shrinkler) decompressor in (26-bit) ARM assembly language by Kieran Connell.
 
 ## Compilation
----
 
 Use [vasm](http://sun.hasenbraten.de/vasm/) with standard syntax.
 
@@ -17,7 +16,6 @@ There a few compilation options:
 * `_PARSE_HEADER=1` adds an additional function `ShrinklerParseHeader` to parse and decompress data with a Shrinkler header.
 
 ## Usage
----
 
 Call `ShrinklerDecompress` with the following registers:
 
@@ -33,7 +31,6 @@ Call `ShrinklerDecompress` with the following registers:
 Alternatively call `ShrinklerParseHeader` with the same register arguments.
 
 ## Compression
----
 
 Either use the [original compressor](https://github.com/askeksa/Shrinkler/releases) or [my fork](https://github.com/kieranhj/Shrinkler) if you want to endian-swap the data at compression time for additional speed and smaller code.
 
@@ -50,16 +47,16 @@ With the following additional options:
  Adjust compression options from `-1` to `-9` according to your patience and requirements. ;)
 
 ## Future Work
----
+
 This code is certainly not size optimal, so there are likely to be improvements to be had. (Although a lack of Cinter or AmigaKlang port to the Archimedes hampers size-coded demo production more accutely.)
 
 It is possible that investigating a 4 byte offset parity mask might well perform better compression on old ARM code that has fixed 32-bit instruction size. This would be at the expense of doubling the context (scratch) memory required during decompression.
 
 ## License
----
+
 
 This code is released under the license terms of the original author Aske Simon Christensen. See [LICENSE.txt](LICENSE.txt) for details.
 
 ## Contact
----
+
 Find me via the [Bitshifters website](https://bitshifters.github.io/).
