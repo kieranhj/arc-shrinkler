@@ -53,7 +53,7 @@ main:
 	adr r0, compressed_data
 	ldr r1, p_out
 	adr r2, write_bytes_callback
-	mov r3, #0
+	adr r3, reference_data
 	adr r9, context
 
 	.if _TEST_HEADER
@@ -76,14 +76,43 @@ main:
 	swi OS_WriteI+13
 	swi OS_WriteI+10
 
+	ldr r2, p_out
+	adr r3, reference_data
+	adr r4, compressed_data
+	.2:
+	ldr r0, [r2], #4
+	ldr r1, [r3], #4
+	cmp r0, r1
+	bne .3
+	cmp r3, r4
+	blt .2
+
+	adr r0, verified_msg
+	swi OS_WriteO
+
 	ldr pc, [sp], #4
 	swi OS_Exit
+
+.3:
+	adr r0, VerifyFail
+	swi OS_GenerateError
+	swi OS_Exit 
+
+VerifyFail: ;The error block
+    .long 18
+	.byte "Data failed to verify."
+	.align 4
+	.long 0
 
 string_buffer:
 	.skip 16
 
 wrote_msg:
 	.byte "Wrote bytes:",0
+	.align 4
+
+verified_msg:
+	.byte "Data verified OK.",13,10,0
 	.align 4
 
 write_bytes_callback:
@@ -127,6 +156,9 @@ p_out:
 
 context:
 .skip NUM_CONTEXTS*4
+
+reference_data:
+.incbin "data/QTMModule,ffa"
 
 compressed_data:
 ;.incbin "build/a252.shri"

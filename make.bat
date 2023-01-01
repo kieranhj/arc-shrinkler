@@ -13,5 +13,5 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo Copying files...
-set HOSTFS=..\..\Arculator_V2.1_Windows\hostfs
+set HOSTFS=..\arculator\hostfs
 copy build\shrinkler.bin "%HOSTFS%\shrinkler,ff8"
