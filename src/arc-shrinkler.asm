@@ -21,6 +21,7 @@
 .equ _PARITY_MASK, 0			; byte or short word data.
 .equ _PARSE_HEADER, 0			; include function to decode header block.
 .equ _ENDIAN_SWAP, 0			; swap byte in long word at runtime.
+.equ _PROGRESS_CB, 1			; include a progress callback (remove to save bytes)
 
 ; ============================================================================
 
@@ -211,9 +212,11 @@ ShrinklerDecompress:
 	str lr, [sp, #-4]!
 	mov r10, r0					; source
 	mov r11, r1					; destination
+	.if _PROGRESS_CB
 	str r1, decomp_base
 	mov r5, r2					; callback fn.
 	str r3, callback_arg
+	.endif
 
 	mov r2, #0					; intervalvalue = 0;
 	mov r3, #1					; intervalsize = 1;
@@ -248,8 +251,10 @@ LZDecode_literal:
 	strb r6, [r11], #1			;   *pDest++ = lit;
 
     ; ReportProgress callback.
+	.if _PROGRESS_CB
 	cmp r5, #0
 	blne ReportProgress
+	.endif
 
     ; After literal.
     ; GetKind:
@@ -287,8 +292,10 @@ LZDecode_readlength:
 	bne .1						; }
 
     ; ReportProgress callback.
+	.if _PROGRESS_CB
 	cmp r5, #0
 	blne ReportProgress
+	.endif
 
     ; After reference.
     ; GetKind:
@@ -315,12 +322,15 @@ LZDecode_readoffset:
 	bne LZDecode_readlength 	;   if (offset == 0) break;
 
 	; Return number of bytes written in R0.
+	.if _PROGRESS_CB
 	ldr r0, decomp_base 
 	sub r0, r11, r0
+	.endif
 	ldr pc, [sp], #4			; return.
 
 ; ============================================================================
 
+.if _PROGRESS_CB
 callback_arg:
 	.long 0
 
@@ -332,6 +342,7 @@ ReportProgress:
 	sub r0, r11, r0				; bytes written.
 	ldr r1, callback_arg
 	mov pc, r5
+.endif
 
 ; ============================================================================
 ; Decodes the Shrinkler header, decompress and verify.
