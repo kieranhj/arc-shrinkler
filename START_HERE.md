@@ -18,7 +18,7 @@ An Acorn Archimedes port of the Shrinkler decompressor in 26-bit ARM assembler (
 
 ## Build and run
 
-- `make`: default target `shrinkler` = `build/shrinkler.bin` copied to `../../Arculator_V2.1_Windows/hostfs/shrinkler,ff8` (the `D:\archie\Arculator_V2.1_Windows` junction into `D:\tools`). On 2026-11-22 it said "Nothing to be done" (all up to date).
+- `make`: default target `shrinkler` = `build/shrinkler.bin` copied to `../../Arculator/hostfs/shrinkler,ff8` (the `D:\archie\Arculator` junction into `D:\tools`). On 2026-11-22 it said "Nothing to be done" (all up to date).
 - Caveat: the recipes use `mkdir -p`, `rm -Rf` and `cp`, which do not exist under cmd.exe, so a real rebuild through `make` fails (and `mkdir -p` would make a stray `-p` folder). Until that is fixed use `cmd /c .\make.bat`, which assembles `src\main.asm` and copies to `..\arculator\hostfs\shrinkler,ff8` instead.
 - Assemble options (`_DEBUG`, `_PARITY_MASK`, `_ENDIAN_SWAP`, `_PARSE_HEADER`) are `.equ`s at the top of `src/main.asm`; see `README.md`.
 - Run `shrinkler` from HostFS in Arculator.
