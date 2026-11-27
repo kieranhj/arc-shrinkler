@@ -9,7 +9,7 @@ VASM=./bin/vasmarm_std_win32.exe -m250 -Fbin -opt-adr
 # no progress, data (not Amiga hunk), endian swap words, assume bytes.
 SHRINKLER=./bin/shrinkler.exe -p -d -z -b
 
-ARCULATOR_HOSTFS=../../Arculator/hostfs
+ARCULATOR_HOSTFS=../../Arculator/hostfs/Builds
 
 ##########################################################################
 ##########################################################################

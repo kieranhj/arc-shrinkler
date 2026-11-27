@@ -14,12 +14,12 @@ An Acorn Archimedes port of the Shrinkler decompressor in 26-bit ARM assembler (
 
 - `src/arc-shrinkler.asm`: the decompressor (`ShrinklerDecompress`, `ShrinklerParseHeader`); `src/main.asm`: the test program.
 - `data/`: test inputs; `bin/`: vasm, `shrinkler.exe` (the endian-swap fork), `rose2arc.py`.
-- `Makefile` (vasm build + deploy), `make.bat` (assemble only + copy to `..\arculator\hostfs`), `README.md` (options and usage).
+- `Makefile` (vasm build + deploy), `make.bat` (assemble only + copy to `..\arculator\hostfs\Builds`), `README.md` (options and usage).
 
 ## Build and run
 
-- `make`: default target `shrinkler` = `build/shrinkler.bin` copied to `../../Arculator/hostfs/shrinkler,ff8` (the `D:\archie\Arculator` junction into `D:\tools`). On 2026-11-22 it said "Nothing to be done" (all up to date).
-- Caveat: the recipes use `mkdir -p`, `rm -Rf` and `cp`, which do not exist under cmd.exe, so a real rebuild through `make` fails (and `mkdir -p` would make a stray `-p` folder). Until that is fixed use `cmd /c .\make.bat`, which assembles `src\main.asm` and copies to `..\arculator\hostfs\shrinkler,ff8` instead.
+- `make`: default target `shrinkler` = `build/shrinkler.bin` copied to `../../Arculator/hostfs/Builds/shrinkler,ff8` (the `D:\archie\Arculator` junction into `D:\tools`). On 2026-11-22 it said "Nothing to be done" (all up to date).
+- Caveat: the recipes use `mkdir -p`, `rm -Rf` and `cp`, which do not exist under cmd.exe, so a real rebuild through `make` fails (and `mkdir -p` would make a stray `-p` folder). Until that is fixed use `cmd /c .\make.bat`, which assembles `src\main.asm` and copies to `..\arculator\hostfs\Builds\shrinkler,ff8` instead.
 - Assemble options (`_DEBUG`, `_PARITY_MASK`, `_ENDIAN_SWAP`, `_PARSE_HEADER`) are `.equ`s at the top of `src/main.asm`; see `README.md`.
 - Run `shrinkler` from HostFS in Arculator.
 
